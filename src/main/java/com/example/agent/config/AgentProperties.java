@@ -1,0 +1,332 @@
+package com.example.agent.config;
+
+import org.springframework.boot.context.properties.ConfigurationProperties;
+
+import java.util.List;
+
+/**
+ * Strongly-typed bindings for everything under "agent.*" in application.yml.
+ */
+@ConfigurationProperties(prefix = "agent")
+public class AgentProperties {
+
+    private String workspace;
+    private Llm llm = new Llm();
+    private Tools tools = new Tools();
+    private Storage storage = new Storage();
+    private Auth auth = new Auth();
+    private Sse sse = new Sse();
+    private RateLimit rateLimit = new RateLimit();
+
+    public String getWorkspace() { return workspace; }
+    public void setWorkspace(String workspace) { this.workspace = workspace; }
+
+    public Llm getLlm() { return llm; }
+    public void setLlm(Llm llm) { this.llm = llm; }
+
+    public Tools getTools() { return tools; }
+    public void setTools(Tools tools) { this.tools = tools; }
+
+    public Storage getStorage() { return storage; }
+    public void setStorage(Storage storage) { this.storage = storage; }
+
+    public Auth getAuth() { return auth; }
+    public void setAuth(Auth auth) { this.auth = auth; }
+
+    public Sse getSse() { return sse; }
+    public void setSse(Sse sse) { this.sse = sse; }
+
+    public RateLimit getRateLimit() { return rateLimit; }
+    public void setRateLimit(RateLimit rateLimit) { this.rateLimit = rateLimit; }
+
+    // ---------- nested ----------
+
+    public static class Llm {
+        private String provider = "anthropic";
+        /** @deprecated use maxTurnsPerRequest; kept for backwards compat. */
+        @Deprecated private int maxIterations = 25;
+        private int maxTurnsPerRequest = 10;
+        private long maxTokensPerRequest = 50_000;
+        private long maxTokensPerSession = 200_000;
+        private String systemPrompt = "";
+        private boolean streamingEnabled = true;
+        private Context context = new Context();
+        private Anthropic anthropic = new Anthropic();
+        private OpenAi openai = new OpenAi();
+        private Ollama ollama = new Ollama();
+        private Copilot copilot = new Copilot();
+
+        public String getProvider() { return provider; }
+        public void setProvider(String provider) { this.provider = provider; }
+        public int getMaxIterations() { return maxIterations; }
+        public void setMaxIterations(int maxIterations) { this.maxIterations = maxIterations; }
+        public int getMaxTurnsPerRequest() { return maxTurnsPerRequest; }
+        public void setMaxTurnsPerRequest(int maxTurnsPerRequest) { this.maxTurnsPerRequest = maxTurnsPerRequest; }
+        public long getMaxTokensPerRequest() { return maxTokensPerRequest; }
+        public void setMaxTokensPerRequest(long maxTokensPerRequest) { this.maxTokensPerRequest = maxTokensPerRequest; }
+        public long getMaxTokensPerSession() { return maxTokensPerSession; }
+        public void setMaxTokensPerSession(long maxTokensPerSession) { this.maxTokensPerSession = maxTokensPerSession; }
+        public String getSystemPrompt() { return systemPrompt; }
+        public void setSystemPrompt(String systemPrompt) { this.systemPrompt = systemPrompt; }
+        public boolean isStreamingEnabled() { return streamingEnabled; }
+        public void setStreamingEnabled(boolean streamingEnabled) { this.streamingEnabled = streamingEnabled; }
+        public Context getContext() { return context; }
+        public void setContext(Context context) { this.context = context; }
+        public Anthropic getAnthropic() { return anthropic; }
+        public void setAnthropic(Anthropic anthropic) { this.anthropic = anthropic; }
+        public OpenAi getOpenai() { return openai; }
+        public void setOpenai(OpenAi openai) { this.openai = openai; }
+        public Ollama getOllama() { return ollama; }
+        public void setOllama(Ollama ollama) { this.ollama = ollama; }
+        public Copilot getCopilot() { return copilot; }
+        public void setCopilot(Copilot copilot) { this.copilot = copilot; }
+    }
+
+    public static class Copilot {
+        /** GitHub token with the `copilot` scope, or enterprise Copilot API token. */
+        private String apiKey;
+        /** Defaults to api.githubcopilot.com; override for enterprise endpoints (e.g. GitHub Models). */
+        private String baseUrl = "https://api.githubcopilot.com";
+        /** Model identifier as exposed by the Copilot API — gpt-4o, claude-3-5-sonnet, o1-mini, etc. */
+        private String model = "gpt-4o";
+        private int maxTokens = 4096;
+        /** Optional: sent as X-GitHub-Api-Version. Leave null for provider default. */
+        private String apiVersion;
+
+        public String getApiKey() { return apiKey; }
+        public void setApiKey(String apiKey) { this.apiKey = apiKey; }
+        public String getBaseUrl() { return baseUrl; }
+        public void setBaseUrl(String baseUrl) { this.baseUrl = baseUrl; }
+        public String getModel() { return model; }
+        public void setModel(String model) { this.model = model; }
+        public int getMaxTokens() { return maxTokens; }
+        public void setMaxTokens(int maxTokens) { this.maxTokens = maxTokens; }
+        public String getApiVersion() { return apiVersion; }
+        public void setApiVersion(String apiVersion) { this.apiVersion = apiVersion; }
+    }
+
+    public static class Context {
+        /** none | last-n */
+        private String policy = "last-n";
+        private int lastN = 50;
+        public String getPolicy() { return policy; }
+        public void setPolicy(String policy) { this.policy = policy; }
+        public int getLastN() { return lastN; }
+        public void setLastN(int lastN) { this.lastN = lastN; }
+    }
+
+    public static class Sse {
+        private int corePoolSize = 4;
+        private int maxPoolSize = 16;
+        private int queueCapacity = 32;
+        /**
+         * How often a comment-frame "heartbeat" is written to every live SSE emitter
+         * so idle proxies/LBs don't time out long-lived streams (the LLM call or a
+         * shell tool can easily exceed a 30-60s proxy idle window). {@link
+         * java.time.Duration#ZERO} disables the feature.
+         *
+         * <p>The default is intentionally well under the 30s idle limit that
+         * most cloud load balancers ship with.
+         */
+        private java.time.Duration heartbeatInterval = java.time.Duration.ofSeconds(15);
+        public int getCorePoolSize() { return corePoolSize; }
+        public void setCorePoolSize(int corePoolSize) { this.corePoolSize = corePoolSize; }
+        public int getMaxPoolSize() { return maxPoolSize; }
+        public void setMaxPoolSize(int maxPoolSize) { this.maxPoolSize = maxPoolSize; }
+        public int getQueueCapacity() { return queueCapacity; }
+        public void setQueueCapacity(int queueCapacity) { this.queueCapacity = queueCapacity; }
+        public java.time.Duration getHeartbeatInterval() { return heartbeatInterval; }
+        public void setHeartbeatInterval(java.time.Duration heartbeatInterval) { this.heartbeatInterval = heartbeatInterval; }
+    }
+
+    public static class RateLimit {
+        private boolean enabled = true;
+        private Bucket chat = new Bucket(30, 30, java.time.Duration.ofMinutes(1));
+        private Bucket api  = new Bucket(300, 300, java.time.Duration.ofMinutes(1));
+        public boolean isEnabled() { return enabled; }
+        public void setEnabled(boolean enabled) { this.enabled = enabled; }
+        public Bucket getChat() { return chat; }
+        public void setChat(Bucket chat) { this.chat = chat; }
+        public Bucket getApi() { return api; }
+        public void setApi(Bucket api) { this.api = api; }
+    }
+
+    public static class Bucket {
+        private long capacity;
+        private long refillTokens;
+        private java.time.Duration refillPeriod;
+        public Bucket() {}
+        public Bucket(long capacity, long refillTokens, java.time.Duration refillPeriod) {
+            this.capacity = capacity; this.refillTokens = refillTokens; this.refillPeriod = refillPeriod;
+        }
+        public long getCapacity() { return capacity; }
+        public void setCapacity(long capacity) { this.capacity = capacity; }
+        public long getRefillTokens() { return refillTokens; }
+        public void setRefillTokens(long refillTokens) { this.refillTokens = refillTokens; }
+        public java.time.Duration getRefillPeriod() { return refillPeriod; }
+        public void setRefillPeriod(java.time.Duration refillPeriod) { this.refillPeriod = refillPeriod; }
+    }
+
+    public static class Anthropic {
+        private String apiKey;
+        private String baseUrl = "https://api.anthropic.com";
+        private String model = "claude-sonnet-4-5";
+        private int maxTokens = 4096;
+
+        public String getApiKey() { return apiKey; }
+        public void setApiKey(String apiKey) { this.apiKey = apiKey; }
+        public String getBaseUrl() { return baseUrl; }
+        public void setBaseUrl(String baseUrl) { this.baseUrl = baseUrl; }
+        public String getModel() { return model; }
+        public void setModel(String model) { this.model = model; }
+        public int getMaxTokens() { return maxTokens; }
+        public void setMaxTokens(int maxTokens) { this.maxTokens = maxTokens; }
+    }
+
+    public static class OpenAi {
+        private String apiKey;
+        private String baseUrl = "https://api.openai.com";
+        private String model = "gpt-4o";
+        private int maxTokens = 4096;
+
+        public String getApiKey() { return apiKey; }
+        public void setApiKey(String apiKey) { this.apiKey = apiKey; }
+        public String getBaseUrl() { return baseUrl; }
+        public void setBaseUrl(String baseUrl) { this.baseUrl = baseUrl; }
+        public String getModel() { return model; }
+        public void setModel(String model) { this.model = model; }
+        public int getMaxTokens() { return maxTokens; }
+        public void setMaxTokens(int maxTokens) { this.maxTokens = maxTokens; }
+    }
+
+    public static class Ollama {
+        private String baseUrl = "http://localhost:11434";
+        private String model = "qwen2.5-coder:7b";
+
+        public String getBaseUrl() { return baseUrl; }
+        public void setBaseUrl(String baseUrl) { this.baseUrl = baseUrl; }
+        public String getModel() { return model; }
+        public void setModel(String model) { this.model = model; }
+    }
+
+    public static class Tools {
+        private Shell shell = new Shell();
+        private File file = new File();
+        private Jira jira = new Jira();
+        private int maxOutputBytes = 16_384;
+
+        public Shell getShell() { return shell; }
+        public void setShell(Shell shell) { this.shell = shell; }
+        public File getFile() { return file; }
+        public void setFile(File file) { this.file = file; }
+        public Jira getJira() { return jira; }
+        public void setJira(Jira jira) { this.jira = jira; }
+        public int getMaxOutputBytes() { return maxOutputBytes; }
+        public void setMaxOutputBytes(int maxOutputBytes) { this.maxOutputBytes = maxOutputBytes; }
+    }
+
+    public static class Shell {
+        private boolean enabled = true;
+        private int timeoutSeconds = 60;
+        private List<String> blockedPatterns = List.of();
+        /** Optional allow-list: if non-empty, commands whose first token isn't in it are rejected. */
+        private List<String> allowedCommands = List.of();
+
+        public boolean isEnabled() { return enabled; }
+        public void setEnabled(boolean enabled) { this.enabled = enabled; }
+        public int getTimeoutSeconds() { return timeoutSeconds; }
+        public void setTimeoutSeconds(int timeoutSeconds) { this.timeoutSeconds = timeoutSeconds; }
+        public List<String> getBlockedPatterns() { return blockedPatterns; }
+        public void setBlockedPatterns(List<String> blockedPatterns) { this.blockedPatterns = blockedPatterns; }
+        public List<String> getAllowedCommands() { return allowedCommands; }
+        public void setAllowedCommands(List<String> allowedCommands) { this.allowedCommands = allowedCommands; }
+    }
+
+    public static class File {
+        private boolean enabled = true;
+        private long maxBytes = 1_048_576;
+
+        public boolean isEnabled() { return enabled; }
+        public void setEnabled(boolean enabled) { this.enabled = enabled; }
+        public long getMaxBytes() { return maxBytes; }
+        public void setMaxBytes(long maxBytes) { this.maxBytes = maxBytes; }
+    }
+
+    public static class Jira {
+        private String baseUrl = "";
+        private String token = "";
+
+        public String getBaseUrl() { return baseUrl; }
+        public void setBaseUrl(String baseUrl) { this.baseUrl = baseUrl; }
+        public String getToken() { return token; }
+        public void setToken(String token) { this.token = token; }
+    }
+
+    public static class Storage {
+        /** One of: memory, sqlite, postgres */
+        private String type = "memory";
+        /** Only used when type=sqlite. */
+        private String sqlitePath = "./data/agent.db";
+
+        public String getType() { return type; }
+        public void setType(String type) { this.type = type; }
+        public String getSqlitePath() { return sqlitePath; }
+        public void setSqlitePath(String sqlitePath) { this.sqlitePath = sqlitePath; }
+    }
+
+    /**
+     * Authentication configuration.
+     *
+     *  - {@code enabled=false}: all endpoints permitAll.
+     *  - {@code enabled=true, mode=basic}: HTTP Basic against the in-memory
+     *    {@link #username}/{@link #password} (legacy / transitional).
+     *  - {@code enabled=true, mode=oidc}: JWT bearer auth, validated against
+     *    {@link Oidc#issuerUri} via Spring Security's resource-server support.
+     *  - {@code enabled=true, mode=disabled}: equivalent to {@code enabled=false}.
+     */
+    public static class Auth {
+        private boolean enabled = false;
+        /** basic | oidc | disabled */
+        private String mode = "basic";
+        // ---- Basic-mode legacy settings ----
+        private String username = "admin";
+        /** Password in plain text. For production, use a secret manager. */
+        private String password = "change-me";
+        // ---- OIDC-mode settings ----
+        private Oidc oidc = new Oidc();
+
+        public boolean isEnabled() { return enabled; }
+        public void setEnabled(boolean enabled) { this.enabled = enabled; }
+        public String getMode() { return mode; }
+        public void setMode(String mode) { this.mode = mode; }
+        public String getUsername() { return username; }
+        public void setUsername(String username) { this.username = username; }
+        public String getPassword() { return password; }
+        public void setPassword(String password) { this.password = password; }
+        public Oidc getOidc() { return oidc; }
+        public void setOidc(Oidc oidc) { this.oidc = oidc; }
+    }
+
+    /**
+     * OIDC / JWT bearer auth settings. Used only when {@code agent.auth.mode=oidc}.
+     */
+    public static class Oidc {
+        /** OIDC issuer (e.g. https://accounts.google.com or https://your-keycloak/realms/x). */
+        private String issuerUri;
+        /** Optional audience claim — if set, tokens missing it are rejected. */
+        private String audience;
+        /** Which JWT claim to use as the principal name. One of: sub, preferred_username, email. */
+        private String principalClaim = "sub";
+        /** Allowed clock skew when validating exp/nbf, in seconds. */
+        private long clockSkewSeconds = 30;
+
+        public String getIssuerUri() { return issuerUri; }
+        public void setIssuerUri(String issuerUri) { this.issuerUri = issuerUri; }
+        public String getAudience() { return audience; }
+        public void setAudience(String audience) { this.audience = audience; }
+        public String getPrincipalClaim() { return principalClaim; }
+        public void setPrincipalClaim(String principalClaim) { this.principalClaim = principalClaim; }
+        public long getClockSkewSeconds() { return clockSkewSeconds; }
+        public void setClockSkewSeconds(long clockSkewSeconds) { this.clockSkewSeconds = clockSkewSeconds; }
+    }
+}

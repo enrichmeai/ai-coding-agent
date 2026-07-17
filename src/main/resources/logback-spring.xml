@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- Default / dev profile: plain text with MDC -->
+    <springProfile name="default,dev">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>%d{HH:mm:ss.SSS} %-5level [%X{requestId:-}] [%X{userId:-}] [%X{sessionId:-}] %logger{30} - %msg%n</pattern>
+            </encoder>
+        </appender>
+    </springProfile>
+
+    <!-- Production profile: JSON structured logs -->
+    <springProfile name="prod">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <customFields>{"service":"ai-coding-agent"}</customFields>
+                <fieldNames>
+                    <timestamp>@timestamp</timestamp>
+                    <level>level</level>
+                    <logger>logger</logger>
+                    <message>message</message>
+                    <threadName>thread_name</threadName>
+                </fieldNames>
+                <includeMdc>true</includeMdc>
+                <includeContext>false</includeContext>
+            </encoder>
+        </appender>
+    </springProfile>
+
+    <!-- Root logger at INFO level -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE" />
+    </root>
+
+    <!-- com.example.agent at INFO level -->
+    <logger name="com.example.agent" level="INFO" />
+</configuration>

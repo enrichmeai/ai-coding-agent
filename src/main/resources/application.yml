@@ -1,0 +1,216 @@
+server:
+  port: 8080
+  shutdown: graceful
+
+spring:
+  application:
+    name: ai-coding-agent
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  mvc:
+    async:
+      request-timeout: 600000
+
+  # OAuth2 / OIDC providers for browser-based login are wired in
+  # OAuthClientConfig. A provider is registered only if its env vars are set
+  # (e.g. GITHUB_OAUTH_CLIENT_ID + GITHUB_OAUTH_CLIENT_SECRET). With nothing
+  # set, only HTTP Basic is active. See README for callback URL patterns.
+
+  # JPA is configured at runtime by AgentApplication only when
+  # agent.storage.type ∈ {sqlite, postgres}. The dialect is set per profile
+  # below (storage-sqlite / storage-postgres) so we don't lock in SQLite here.
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none            # Flyway owns the schema
+    properties:
+      hibernate:
+        show_sql: false
+
+  flyway:
+    enabled: false              # enabled only under storage-sqlite profile below
+    baseline-on-migrate: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true           # exposes /actuator/health/liveness + /readiness
+      show-details: when_authorized
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState,db,llmProvider
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+agent:
+  workspace: ${AGENT_WORKSPACE:${user.dir}/agent-workspace}
+
+  storage:
+    type: ${AGENT_STORAGE_TYPE:memory}
+    sqlite-path: ${AGENT_SQLITE_PATH:./data/agent.db}
+
+  auth:
+    enabled: ${AGENT_AUTH_ENABLED:false}
+    # basic | oidc | disabled
+    mode: ${AGENT_AUTH_MODE:basic}
+    # ---- Basic-mode (legacy / transitional) ----
+    username: ${AGENT_AUTH_USERNAME:admin}
+    password: ${AGENT_AUTH_PASSWORD:change-me}
+    # ---- OIDC-mode (production) ----
+    oidc:
+      issuer-uri:       ${AGENT_OIDC_ISSUER_URI:}
+      audience:         ${AGENT_OIDC_AUDIENCE:}
+      principal-claim:  ${AGENT_OIDC_PRINCIPAL_CLAIM:sub}
+      clock-skew-seconds: ${AGENT_OIDC_CLOCK_SKEW_SECONDS:30}
+
+  sse:
+    core-pool-size: 4
+    max-pool-size: 16
+    queue-capacity: 32
+    # Send a comment-frame heartbeat to every active SSE emitter on this
+    # interval so idle proxies/load balancers don't drop long-running streams
+    # (LLM calls and shell tools can exceed a 30-60s proxy idle timeout).
+    # Set to 0 (PT0S) to disable. See docs/adr/0002-multi-instance-sse.md.
+    heartbeat-interval: ${AGENT_SSE_HEARTBEAT_INTERVAL:15s}
+
+  rate-limit:
+    enabled: ${AGENT_RATE_LIMIT_ENABLED:true}
+    chat:
+      capacity: 30
+      refill-tokens: 30
+      refill-period: 1m
+    api:
+      capacity: 300
+      refill-tokens: 300
+      refill-period: 1m
+
+  llm:
+    provider: ${AGENT_LLM_PROVIDER:copilot}
+    max-turns-per-request: 10
+    max-tokens-per-request: 50000
+    max-tokens-per-session: 200000
+    # Per-token streaming from the LLM to the SSE endpoint. See ADR 0003.
+    streaming-enabled: ${AGENT_LLM_STREAMING_ENABLED:true}
+    system-prompt: |
+      You are an expert AI coding agent. You help the user explore and modify
+      their codebase. You have access to tools that let you read files, edit
+      files, run shell commands, search code, and use git. ALWAYS prefer
+      reading a file before editing it. Keep responses concise. Explain your
+      plan briefly before taking multi-step actions.
+    context:
+      policy: last-n            # none | last-n
+      last-n: 50
+
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY:}
+      base-url: https://api.anthropic.com
+      model: claude-sonnet-4-5
+      max-tokens: 4096
+
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      base-url: https://api.openai.com
+      model: gpt-4o
+      max-tokens: 4096
+
+    ollama:
+      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+      model: ${OLLAMA_MODEL:qwen2.5-coder:7b}
+
+    copilot:
+      api-key: ${GITHUB_COPILOT_TOKEN:${GITHUB_TOKEN:}}
+      base-url: ${COPILOT_BASE_URL:https://api.githubcopilot.com}
+      model: ${COPILOT_MODEL:gpt-4o}
+      max-tokens: 4096
+
+  tools:
+    max-output-bytes: 16384
+    shell:
+      enabled: ${AGENT_TOOLS_SHELL_ENABLED:true}
+      timeout-seconds: 60
+      blocked-patterns:
+        - "^\\s*rm\\s+-rf\\s+/"
+        - "^\\s*:\\(\\)\\{"
+        - "mkfs"
+        - "dd\\s+if="
+        # Expanded: common exfiltration / lateral movement vectors
+        - "(?i)\\bcurl\\b"
+        - "(?i)\\bwget\\b"
+        - "(?i)\\bnc\\b"
+        - "(?i)\\bncat\\b"
+        - "(?i)\\bssh\\b"
+        - "(?i)\\bscp\\b"
+        - "(?i)\\brsync\\b"
+        - "(?i)\\bftp\\b"
+        - "(?i)\\bnohup\\b"
+        - "(?i)/etc/shadow"
+        - "(?i)~/\\.ssh"
+      # Opt-in allow-list. Empty = permissive (block-list only). Populate in prod:
+      # allowed-commands: [ls, cat, rg, grep, find, head, tail, wc, git, ./gradlew]
+      allowed-commands: []
+    file:
+      enabled: true
+      max-bytes: 1048576
+    jira:
+      base-url: ${JIRA_BASE_URL:}
+      token: ${JIRA_API_TOKEN:}
+
+logging:
+  level:
+    com.example.agent: INFO
+
+---
+spring:
+  config:
+    activate:
+      on-profile: storage-sqlite
+  datasource:
+    url: jdbc:sqlite:${agent.storage.sqlite-path}
+    driver-class-name: org.sqlite.JDBC
+  jpa:
+    properties:
+      hibernate:
+        dialect: org.hibernate.community.dialect.SQLiteDialect
+  flyway:
+    enabled: true
+    locations: classpath:db/migration/sqlite
+    # SQLite doesn't support transactional DDL — disable it.
+    group: false
+    out-of-order: false
+
+---
+spring:
+  config:
+    activate:
+      on-profile: storage-postgres
+  datasource:
+    url:      ${AGENT_DB_URL:jdbc:postgresql://localhost:5432/agent}
+    username: ${AGENT_DB_USER:agent}
+    password: ${AGENT_DB_PASSWORD:}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${AGENT_DB_POOL_MAX:10}
+      minimum-idle:      ${AGENT_DB_POOL_MIN:2}
+      connection-timeout: 30000
+      idle-timeout:       600000
+      max-lifetime:       1800000
+  jpa:
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration/postgres
+    # Postgres supports transactional DDL.
+    group: true
+    out-of-order: false

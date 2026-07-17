@@ -1,0 +1,10 @@
+Vendored frontend libraries used by index.html.
+Downloaded from cdnjs.cloudflare.com (mirror of the official npm releases).
+
+marked.min.js          14.1.3   MIT          https://github.com/markedjs/marked
+highlight.min.js       11.10.0  BSD-3-Clause https://github.com/highlightjs/highlight.js
+purify.min.js          3.1.7    Apache-2.0 / MPL-2.0  https://github.com/cure53/DOMPurify
+atom-one-dark.min.css  11.10.0  BSD-3-Clause (highlight.js theme)
+
+To upgrade, replace the file and bump the version above. Keep these pinned —
+do not load from a CDN at runtime.

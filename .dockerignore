@@ -1,0 +1,10 @@
+.gradle
+build
+out
+.idea
+*.iml
+.vscode
+.git
+data
+agent-workspace
+README.md

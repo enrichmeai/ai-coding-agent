@@ -1,0 +1,47 @@
+name: Nightly Test Triage
+
+on:
+  schedule:
+    # Run at 2:00 AM UTC daily
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+env:
+  AGENT_URL: ${{ secrets.AGENT_URL }}
+  AGENT_AUTH: ${{ secrets.AGENT_AUTH }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fetch failing tests
+        id: triage
+        run: |
+          PROMPT="You are a test triage assistant. Pull the last 10 failing test runs from the main branch on GitHub Actions. For each failure, analyze the error logs and provide a summary of root causes. Focus on: flaky tests, environmental issues, or recent code changes that may have broken tests. Format your response as a concise list of issues with suggested fixes."
+
+          PAYLOAD=$(jq -n --arg prompt "$PROMPT" '{"messages":[{"role":"user","content":$prompt}]}')
+
+          RESPONSE=$(curl -s -X POST "${AGENT_URL}/api/chat" \
+            -H "Content-Type: application/json" \
+            -u "${AGENT_AUTH}" \
+            -d "$PAYLOAD")
+
+          # Extract the final text response (assumes text property in response)
+          SUMMARY=$(echo "$RESPONSE" | jq -r '.content[0].text // .text // empty' 2>/dev/null || echo "Unable to parse response")
+          echo "summary<<EOF" >> $GITHUB_OUTPUT
+          echo "$SUMMARY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create issue
+        if: steps.triage.outputs.summary != ''
+        run: |
+          gh issue create \
+            --title "Nightly Test Triage - $(date -u +%Y-%m-%d)" \
+            --body "## Test Failure Summary\n\n${{ steps.triage.outputs.summary }}\n\n_Auto-triaged by AI agent at $(date -u)_" \
+            --draft
+        env:
+          GH_TOKEN: ${{ github.token }}

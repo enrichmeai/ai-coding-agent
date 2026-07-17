@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Coding Agent</title>
+  <link rel="stylesheet" href="/lib/atom-one-dark.min.css" />
+  <script src="/lib/marked.min.js"></script>
+  <script src="/lib/highlight.min.js"></script>
+  <script src="/lib/purify.min.js"></script>
+  <style>
+    :root {
+      --bg: #0e1117;
+      --panel: #161b22;
+      --panel2: #1e242c;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --user: #1f6feb;
+      --tool: #8957e5;
+      --error: #f85149;
+      --ok: #3fb950;
+      --warn: #d29922;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; background: var(--bg); color: var(--text);
+                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    #app { display: grid; grid-template-columns: 260px 1fr; height: 100vh; }
+    #sidebar { background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; min-width: 0; }
+    #sidebar header { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+    #sidebar h1 { font-size: 14px; margin: 0; letter-spacing: 0.3px; }
+    #sidebar #provider { color: var(--muted); font-size: 11px; }
+    #sessions { flex: 1; overflow-y: auto; padding: 8px; }
+    .session { padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; color: var(--muted); margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .session:hover { background: var(--panel2); color: var(--text); }
+    .session.active { background: var(--panel2); color: var(--text); }
+    #new-session { width: calc(100% - 16px); margin: 8px; padding: 8px; background: var(--accent); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; }
+    #new-session:hover { opacity: 0.9; }
+
+    #main { display: flex; flex-direction: column; min-width: 0; }
+    #toolbar { padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--panel); display: flex; align-items: center; gap: 12px; }
+    #toolbar .title { font-weight: 500; }
+    #toolbar .meta { margin-left: auto; font-size: 12px; color: var(--muted); display: flex; gap: 14px; align-items: center; }
+    #toolbar .usage { font-variant-numeric: tabular-nums; }
+
+    #messages { flex: 1; overflow-y: auto; padding: 20px 24px; }
+    .msg { margin: 0 0 18px 0; max-width: 900px; }
+    .role-user    .bubble { background: var(--user); }
+    .role-assistant .bubble { background: var(--panel); border: 1px solid var(--border); }
+    .role-tool     .bubble { background: transparent; border: none; padding: 0; }
+    .role { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin-bottom: 6px; }
+    .bubble { padding: 10px 14px; border-radius: 8px; line-height: 1.55; font-size: 14px; word-wrap: break-word; }
+    .bubble h1, .bubble h2, .bubble h3, .bubble h4 { margin: 12px 0 6px; }
+    .bubble h1 { font-size: 20px; } .bubble h2 { font-size: 17px; } .bubble h3 { font-size: 15px; }
+    .bubble ul, .bubble ol { padding-left: 20px; margin: 6px 0; }
+    .bubble li { margin: 2px 0; }
+    .bubble a { color: var(--accent); }
+    .bubble blockquote { border-left: 3px solid var(--border); padding-left: 10px; color: var(--muted); margin: 6px 0; }
+    .bubble code { font-family: "SF Mono", Monaco, Consolas, monospace; font-size: 13px; background: rgba(110, 118, 129, 0.25); padding: 1px 5px; border-radius: 4px; }
+    .bubble pre { position: relative; background: #0b0f14; padding: 10px 12px; border-radius: 6px; overflow-x: auto; margin: 10px 0; border: 1px solid var(--border); }
+    .bubble pre code { background: none; padding: 0; font-size: 13px; display: block; white-space: pre; }
+    .copy-btn { position: absolute; top: 6px; right: 6px; background: var(--panel2); color: var(--muted); border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; font-size: 11px; cursor: pointer; opacity: 0; transition: opacity .15s; }
+    .bubble pre:hover .copy-btn { opacity: 1; }
+    .copy-btn:hover { color: var(--text); }
+    .copy-btn.copied { color: var(--ok); border-color: var(--ok); }
+
+    .tool-block { background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--tool); border-radius: 6px; padding: 8px 12px; margin-top: 6px; font-family: "SF Mono", Monaco, Consolas, monospace; font-size: 12px; }
+    .tool-block.error { border-left-color: var(--error); }
+    .tool-title { color: var(--tool); font-weight: 600; margin-bottom: 4px; }
+    .tool-title.error { color: var(--error); }
+    .tool-args { color: var(--muted); white-space: pre-wrap; margin-bottom: 4px; font-size: 11px; }
+    .tool-result { white-space: pre-wrap; color: var(--text); max-height: 400px; overflow-y: auto; }
+
+    #composer { padding: 14px 24px 20px; border-top: 1px solid var(--border); background: var(--panel); }
+    #composer form { display: flex; gap: 10px; max-width: 900px; }
+    #composer textarea { flex: 1; background: var(--panel2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 10px 12px; resize: none; font-family: inherit; font-size: 14px; min-height: 42px; max-height: 200px; }
+    #composer textarea:focus { outline: none; border-color: var(--accent); }
+    #composer button { background: var(--accent); color: white; border: none; border-radius: 8px; padding: 0 20px; font-weight: 500; cursor: pointer; min-width: 80px; }
+    #composer button.stop { background: var(--error); }
+    #composer button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .hint { font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+    .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 6px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Small screens: stack */
+    @media (max-width: 700px) {
+      #app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+      #sidebar { max-height: 180px; }
+      #sessions { display: flex; overflow-x: auto; overflow-y: hidden; gap: 6px; }
+      .session { flex-shrink: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <aside id="sidebar">
+      <header>
+        <h1>AI Coding Agent</h1>
+        <span id="provider"></span>
+      </header>
+      <button id="new-session">+ New session</button>
+      <input type="search" id="session-search" placeholder="Search sessions" style="width: calc(100% - 16px); margin: 0 8px 8px; padding: 6px 8px; background: var(--panel2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; font-size: 13px; box-sizing: border-box;">
+      <div id="session-actions" style="display: flex; gap: 6px; padding: 0 8px 8px;">
+        <button id="export-session" type="button" style="flex: 1; padding: 6px; background: var(--panel2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 12px;">Export</button>
+        <button id="import-session" type="button" style="flex: 1; padding: 6px; background: var(--panel2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 12px;">Import</button>
+        <input id="import-file" type="file" accept=".md,text/markdown" style="display: none;" />
+      </div>
+      <div id="sessions"></div>
+    </aside>
+
+    <main id="main">
+      <div id="toolbar">
+        <span class="title" id="session-title">No session</span>
+        <span class="meta">
+          <span class="usage" id="usage">0 in / 0 out tokens</span>
+          <span id="tool-list"></span>
+        </span>
+      </div>
+      <div id="messages"></div>
+      <div id="composer">
+        <form id="chat-form">
+          <textarea id="input" placeholder="Ask the agent… (Cmd/Ctrl+Enter to send)" rows="1"></textarea>
+          <button id="send" type="submit">Send</button>
+        </form>
+        <div class="hint">Try: "List the files in this repo", "Read build.gradle and explain it", "Create a hello world in src/hello.py". The agent will stream its thinking and tool calls live.</div>
+      </div>
+    </main>
+  </div>
+
+<script>
+const api = {
+  async health() { return (await fetch('/api/health')).json(); },
+  async listSessions() { return (await fetch('/api/sessions')).json(); },
+  async searchSessions(q) {
+    return (await fetch('/api/sessions/search?q=' + encodeURIComponent(q) + '&limit=20')).json();
+  },
+  async getSession(id) { return (await fetch('/api/sessions/' + id)).json(); },
+  async deleteSession(id) { await fetch('/api/sessions/' + id, { method: 'DELETE' }); },
+};
+
+const state = { sessionId: null, sending: false, abortCtrl: null };
+
+const els = {
+  messages: document.getElementById('messages'),
+  sessionsList: document.getElementById('sessions'),
+  title: document.getElementById('session-title'),
+  provider: document.getElementById('provider'),
+  toolList: document.getElementById('tool-list'),
+  usage: document.getElementById('usage'),
+  input: document.getElementById('input'),
+  sendBtn: document.getElementById('send'),
+  form: document.getElementById('chat-form'),
+  newBtn: document.getElementById('new-session'),
+  search: document.getElementById('session-search'),
+};
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/**
+ * Render markdown to a sanitised HTML string. Pipeline: marked.parse →
+ * DOMPurify.sanitize. Syntax highlighting + copy buttons are applied in a
+ * post-render pass by `enhanceCodeBlocks` once the HTML is in the DOM.
+ *
+ * Marked is configured once at module load with GFM + `breaks: true` so a
+ * single newline becomes <br> (matches the old hand-rolled renderer's feel).
+ */
+function md(src) {
+  if (!src) return '';
+  const raw = marked.parse(String(src));
+  // ADD_ATTR: target — keep the `target="_blank"` we set in `enhanceCodeBlocks`.
+  return DOMPurify.sanitize(raw, { ADD_ATTR: ['target'] });
+}
+
+/**
+ * Post-process rendered markdown: highlight code blocks (no line numbers,
+ * dark theme via atom-one-dark.css) and add a Copy button to each <pre>.
+ * Idempotent — guarded by data-hljs-applied so repeated calls are cheap.
+ */
+function enhanceCodeBlocks(root) {
+  root.querySelectorAll('pre > code').forEach(code => {
+    if (code.dataset.hljsApplied) return;
+    code.dataset.hljsApplied = '1';
+    try { hljs.highlightElement(code); } catch {}
+    const pre = code.parentElement;
+    if (pre && !pre.querySelector('.copy-btn')) {
+      const btn = document.createElement('button');
+      btn.className = 'copy-btn';
+      btn.title = 'Copy';
+      btn.textContent = 'Copy';
+      btn.dataset.code = code.textContent;
+      pre.appendChild(btn);
+    }
+  });
+  // Marked doesn't emit target on links — open external links in a new tab.
+  root.querySelectorAll('a[href]').forEach(a => {
+    if (!a.target) a.target = '_blank';
+    if (!a.rel) a.rel = 'noopener';
+  });
+}
+
+// Configure marked once at script load.
+marked.setOptions({ breaks: true, gfm: true });
+
+function renderMessage(msg) {
+  if (msg.role === 'SYSTEM') return '';
+  const cls = 'msg role-' + msg.role.toLowerCase();
+
+  if (msg.role === 'TOOL') {
+    const blocks = (msg.toolResults || []).map(r => `
+      <div class="tool-block ${r.isError ? 'error' : ''}">
+        <div class="tool-title ${r.isError ? 'error' : ''}">Tool result ${r.isError ? '(error)' : ''}</div>
+        <div class="tool-result">${esc(r.content)}</div>
+      </div>`).join('');
+    return `<div class="${cls}"><div class="role">Tool output</div>${blocks}</div>`;
+  }
+
+  const label = msg.role === 'USER' ? 'You' : 'Assistant';
+  // User messages: plain text; assistant: markdown-rendered.
+  const textHtml = msg.text
+      ? `<div class="bubble">${msg.role === 'ASSISTANT' ? md(msg.text) : esc(msg.text)}</div>`
+      : '';
+  const calls = (msg.toolCalls || []).map(tc => `
+    <div class="tool-block">
+      <div class="tool-title">Calling tool: ${esc(tc.name)}</div>
+      <div class="tool-args">${esc(JSON.stringify(tc.arguments, null, 2))}</div>
+    </div>`).join('');
+  return `<div class="${cls}"><div class="role">${label}</div>${textHtml}${calls}</div>`;
+}
+
+function renderAll(messages) {
+  els.messages.innerHTML = messages.map(renderMessage).join('');
+  els.messages.scrollTop = els.messages.scrollHeight;
+  wireCopyButtons(els.messages);
+}
+
+function wireCopyButtons(root) {
+  enhanceCodeBlocks(root);
+  root.querySelectorAll('.copy-btn').forEach(btn => {
+    if (btn.dataset.wired) return;
+    btn.dataset.wired = '1';
+    btn.addEventListener('click', async () => {
+      const code = btn.dataset.code.replace(/&amp;/g, '&').replace(/&lt;/g, '<')
+                                   .replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+                                   .replace(/&#39;/g, "'");
+      try {
+        await navigator.clipboard.writeText(code);
+        btn.textContent = 'Copied';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1200);
+      } catch {}
+    });
+  });
+}
+
+function renderUsage(u) {
+  if (!u) { els.usage.textContent = '0 in / 0 out tokens'; return; }
+  els.usage.textContent = `${u.inputTokens.toLocaleString()} in / ${u.outputTokens.toLocaleString()} out tokens`;
+}
+
+function renderSessionList(list) {
+  els.sessionsList.innerHTML = list.map(s =>
+    `<div class="session ${s.id === state.sessionId ? 'active' : ''}" data-id="${s.id}">
+       ${esc(s.title || '(untitled)')}
+     </div>`).join('');
+  els.sessionsList.querySelectorAll('.session').forEach(el => {
+    el.addEventListener('click', () => loadSession(el.dataset.id));
+  });
+}
+
+async function refreshSessions() {
+  const q = (els.search && els.search.value || '').trim();
+  if (q) {
+    // Server already returns results sorted by createdAt DESC and capped.
+    renderSessionList(await api.searchSessions(q));
+    return;
+  }
+  const list = await api.listSessions();
+  list.sort((a,b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  renderSessionList(list);
+}
+
+// Debounced search input — 250ms. Empty query re-fetches the full list.
+let searchTimer = null;
+els.search.addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { refreshSessions().catch(() => {}); }, 250);
+});
+
+async function loadSession(id) {
+  state.sessionId = id;
+  const data = await api.getSession(id);
+  els.title.textContent = data.title || 'Session';
+  renderUsage(data.usage);
+  renderAll(data.history);
+  await refreshSessions();
+}
+
+/** Stream SSE frames from POST /api/chat/stream. Yields {event, data}. */
+async function* streamChat(sessionId, message, signal) {
+  const r = await fetch('/api/chat/stream', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'accept': 'text/event-stream' },
+    body: JSON.stringify({ sessionId, message }),
+    signal
+  });
+  if (!r.ok) {
+    const err = await r.text();
+    throw new Error('HTTP ' + r.status + ' ' + err);
+  }
+  const reader = r.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '';
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) return;
+    buf += dec.decode(value, { stream: true });
+    let i;
+    while ((i = buf.indexOf('\n\n')) !== -1) {
+      const frame = buf.slice(0, i);
+      buf = buf.slice(i + 2);
+      let event = 'message', data = '';
+      for (const line of frame.split('\n')) {
+        if (line.startsWith('event:')) event = line.slice(6).trim();
+        else if (line.startsWith('data:')) data += (data ? '\n' : '') + line.slice(5).trim();
+      }
+      if (data) yield { event, data: JSON.parse(data) };
+    }
+  }
+}
+
+function setSending(sending) {
+  state.sending = sending;
+  if (sending) {
+    els.sendBtn.textContent = 'Stop';
+    els.sendBtn.classList.add('stop');
+    els.sendBtn.type = 'button';
+  } else {
+    els.sendBtn.textContent = 'Send';
+    els.sendBtn.classList.remove('stop');
+    els.sendBtn.type = 'submit';
+    state.abortCtrl = null;
+  }
+}
+
+async function onSend(ev) {
+  ev.preventDefault();
+  if (state.sending) return;   // Stop handled separately
+  const text = els.input.value.trim();
+  if (!text) return;
+
+  state.abortCtrl = new AbortController();
+  setSending(true);
+
+  const userNode = document.createElement('div');
+  userNode.innerHTML = renderMessage({ role: 'USER', text });
+  els.messages.appendChild(userNode.firstChild);
+  const thinking = document.createElement('div');
+  thinking.className = 'msg role-assistant';
+  thinking.innerHTML = `<div class="role">Assistant</div><div class="bubble"><span class="spinner"></span>Thinking…</div>`;
+  els.messages.appendChild(thinking);
+  els.messages.scrollTop = els.messages.scrollHeight;
+  els.input.value = '';
+  els.input.style.height = 'auto';
+
+  let thinkingRemoved = false;
+  // Live bubble for the currently-streaming assistant message. Raw text appears
+  // here as `token` events arrive; on the next `message` event we re-render with
+  // full markdown (ADR 0003: render only on message-complete).
+  let liveBubble = null;
+  let liveText = '';
+  try {
+    for await (const { event, data } of streamChat(state.sessionId, text, state.abortCtrl.signal)) {
+      if (event === 'session') {
+        state.sessionId = data.sessionId;
+        els.title.textContent = data.title;
+        if (data.usage) renderUsage(data.usage);
+      } else if (event === 'token') {
+        if (!thinkingRemoved) { thinking.remove(); thinkingRemoved = true; }
+        if (!liveBubble) {
+          const node = document.createElement('div');
+          node.className = 'msg role-assistant';
+          node.innerHTML = `<div class="role">Assistant</div><div class="bubble"></div>`;
+          els.messages.appendChild(node);
+          liveBubble = node.querySelector('.bubble');
+        }
+        liveText += data.text;
+        liveBubble.textContent = liveText;  // plain text during streaming
+        els.messages.scrollTop = els.messages.scrollHeight;
+      } else if (event === 'message') {
+        if (!thinkingRemoved) { thinking.remove(); thinkingRemoved = true; }
+        if (data.role === 'USER') continue;
+        // Close out the live bubble (if any). If the final assistant message has
+        // text we keep the bubble and replace its content with rendered markdown.
+        // If it has only tool calls (no text), drop the now-empty live bubble.
+        if (liveBubble) {
+          if (data.role === 'ASSISTANT' && data.text) {
+            liveBubble.innerHTML = md(data.text);
+            wireCopyButtons(liveBubble.parentElement);
+          } else {
+            liveBubble.parentElement.remove();
+          }
+          liveBubble = null;
+          liveText = '';
+        }
+        if (!(data.role === 'ASSISTANT' && data.text)) {
+          // Tool messages, or assistant messages with only tool calls — render fresh node.
+          const node = document.createElement('div');
+          node.innerHTML = renderMessage(data);
+          if (node.firstChild) {
+            els.messages.appendChild(node.firstChild);
+            wireCopyButtons(els.messages);
+          }
+        }
+        els.messages.scrollTop = els.messages.scrollHeight;
+      } else if (event === 'error') {
+        throw new Error(data.error || 'stream error');
+      }
+    }
+    await refreshSessions();
+  } catch (e) {
+    const aborted = e.name === 'AbortError';
+    const msg = aborted ? 'Stopped.' : ('Error: ' + e.message);
+    const color = aborted ? 'var(--warn)' : 'var(--error)';
+    if (!thinkingRemoved) {
+      thinking.querySelector('.bubble').innerHTML = `<span style="color:${color}">${esc(msg)}</span>`;
+    } else {
+      const node = document.createElement('div');
+      node.className = 'msg role-assistant';
+      node.innerHTML = `<div class="role">Notice</div><div class="bubble" style="color:${color}">${esc(msg)}</div>`;
+      els.messages.appendChild(node);
+    }
+  } finally {
+    setSending(false);
+    els.input.focus();
+  }
+}
+
+// Stop handler — single button toggles send/stop.
+els.sendBtn.addEventListener('click', (e) => {
+  if (state.sending) {
+    e.preventDefault();
+    if (state.abortCtrl) state.abortCtrl.abort();
+  }
+});
+
+els.form.addEventListener('submit', onSend);
+els.input.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') onSend(e);
+});
+els.input.addEventListener('input', () => {
+  els.input.style.height = 'auto';
+  els.input.style.height = Math.min(els.input.scrollHeight, 200) + 'px';
+});
+els.newBtn.addEventListener('click', async () => {
+  state.sessionId = null;
+  els.title.textContent = 'New session';
+  els.messages.innerHTML = '';
+  renderUsage(null);
+  els.input.focus();
+});
+
+// Export current session as markdown — browser handles download via Content-Type.
+document.getElementById('export-session').addEventListener('click', () => {
+  if (!state.sessionId) { alert('Open a session first.'); return; }
+  window.location = '/api/sessions/' + encodeURIComponent(state.sessionId) + '/export.md';
+});
+
+// Import a markdown transcript, create a new session from it, then load it.
+const importInput = document.getElementById('import-file');
+document.getElementById('import-session').addEventListener('click', () => importInput.click());
+importInput.addEventListener('change', async () => {
+  const file = importInput.files && importInput.files[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const r = await fetch('/api/sessions/import', {
+      method: 'POST',
+      headers: { 'content-type': 'text/markdown' },
+      credentials: 'same-origin',
+      body: text
+    });
+    if (!r.ok) {
+      const errBody = await r.text();
+      throw new Error('HTTP ' + r.status + ' ' + errBody);
+    }
+    const created = await r.json();
+    await refreshSessions();
+    await loadSession(created.id);
+  } catch (e) {
+    alert('Import failed: ' + e.message);
+  } finally {
+    importInput.value = '';   // allow re-importing the same file
+  }
+});
+
+(async function init() {
+  try {
+    const h = await api.health();
+    els.provider.textContent = h.provider;
+    els.toolList.textContent = (h.tools || []).length + ' tools';
+  } catch (e) {
+    els.provider.textContent = '(offline)';
+  }
+  renderUsage(null);
+  await refreshSessions();
+  els.input.focus();
+})();
+</script>
+</body>
+</html>

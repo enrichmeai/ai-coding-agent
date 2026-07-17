@@ -1,0 +1,40 @@
+services:
+  agent:
+    build: .
+    image: ai-coding-agent:latest
+    container_name: ai-coding-agent
+    ports:
+      - "8080:8080"
+    environment:
+      # ---- LLM provider ----
+      AGENT_LLM_PROVIDER: ${AGENT_LLM_PROVIDER:-anthropic}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY:    ${OPENAI_API_KEY:-}
+      OLLAMA_BASE_URL:   ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+
+      # ---- Storage ----
+      AGENT_STORAGE_TYPE: sqlite
+      AGENT_SQLITE_PATH:  /data/agent.db
+
+      # ---- Auth ----
+      AGENT_AUTH_ENABLED:  ${AGENT_AUTH_ENABLED:-false}
+      AGENT_AUTH_USERNAME: ${AGENT_AUTH_USERNAME:-admin}
+      AGENT_AUTH_PASSWORD: ${AGENT_AUTH_PASSWORD:-change-me}
+
+      JAVA_OPTS: "-Xmx512m"
+    volumes:
+      - ./data:/data                                # persistent SQLite db
+      - ${AGENT_WORKSPACE_HOST:-./agent-workspace}:/workspace   # mount the folder the agent edits
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"         # for talking to Ollama on the host
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /home/agent/.cache
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 1g

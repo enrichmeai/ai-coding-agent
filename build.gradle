@@ -1,0 +1,89 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.3.4'
+    id 'io.spring.dependency-management' version '1.1.6'
+}
+
+group = 'com.example'
+version = '0.1.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Spring Boot
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'   // WebClient for LLM calls
+    implementation 'org.springframework.boot:spring-boot-starter-security'  // HTTP Basic + OIDC
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client' // GitHub / Google / Okta SSO
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server' // JWT bearer auth
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'  // SQLite/Postgres persistence
+
+    // SQLite driver + Hibernate community dialect (dev/local default)
+    runtimeOnly   'org.xerial:sqlite-jdbc:3.46.1.0'
+    implementation 'org.hibernate.orm:hibernate-community-dialects:6.5.2.Final'
+
+    // Postgres driver (production)
+    runtimeOnly   'org.postgresql:postgresql:42.7.4'
+
+    // OpenAPI / Swagger UI at /swagger-ui.html
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0'
+
+    // Phase 1 safety: rate limiting + bucket cache + migrations
+    implementation 'com.bucket4j:bucket4j-core:8.10.1'
+    implementation 'com.github.ben-manes.caffeine:caffeine:3.1.8'
+    implementation 'org.flywaydb:flyway-core'
+    // Flyway 10+ moved per-vendor support into separate modules. Required for
+    // Postgres because flyway-core no longer ships the Postgres parser.
+    runtimeOnly 'org.flywaydb:flyway-database-postgresql'
+
+    // Phase 2 operability: metrics + JSON logs
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'io.micrometer:micrometer-registry-prometheus'
+    implementation 'net.logstash.logback:logstash-logback-encoder:7.4'
+
+    // JSON
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+
+    // Utilities
+    implementation 'org.apache.commons:commons-lang3:3.14.0'
+    implementation 'commons-io:commons-io:2.16.1'
+
+    // Lombok (optional but handy)
+    compileOnly 'org.projectlombok:lombok:1.18.34'
+    annotationProcessor 'org.projectlombok:lombok:1.18.34'
+    testCompileOnly 'org.projectlombok:lombok:1.18.34'
+    testAnnotationProcessor 'org.projectlombok:lombok:1.18.34'
+
+    // Test
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly   'org.junit.platform:junit-platform-launcher'
+    testRuntimeOnly   'com.h2database:h2'
+
+    // Testcontainers — Postgres integration tests (real DB, real migrations)
+    testImplementation 'org.testcontainers:postgresql:1.20.4'
+    testImplementation 'org.testcontainers:junit-jupiter:1.20.4'
+
+    // MockWebServer — provider streaming + non-streaming wire tests
+    testImplementation 'com.squareup.okhttp3:mockwebserver:4.12.0'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+bootRun {
+    // Let the user override workspace dir from the CLI: ./gradlew bootRun --args='--agent.workspace=/path'
+    systemProperty 'spring.profiles.active', System.getProperty('spring.profiles.active', 'default')
+}
