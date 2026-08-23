@@ -4,10 +4,14 @@ import com.example.agent.config.AgentMetrics;
 import com.example.agent.config.AgentProperties;
 import com.example.agent.llm.CompletionResult;
 import com.example.agent.model.ChatMessage;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,6 +26,7 @@ class OllamaProviderWireTest {
 
     private MockWebServer server;
     private OllamaProvider provider;
+    private AgentProperties.Ollama cfg;
 
     @BeforeEach
     void setUp() throws IOException {
@@ -29,7 +34,7 @@ class OllamaProviderWireTest {
         server.start();
 
         AgentProperties props = new AgentProperties();
-        AgentProperties.Ollama cfg = props.getLlm().getOllama();
+        cfg = props.getLlm().getOllama();
         cfg.setBaseUrl(server.url("/").toString().replaceAll("/$", ""));
         cfg.setModel("llama3");
 
@@ -92,5 +97,94 @@ class OllamaProviderWireTest {
                 .containsEntry("path", "foo.txt");
         assertThat(result.usage().inputTokens()).isEqualTo(7);
         assertThat(result.usage().outputTokens()).isEqualTo(11);
+    }
+
+    /** Body of the single request the provider sent. */
+    private JsonNode sentBody() throws Exception {
+        RecordedRequest recorded = server.takeRequest();
+        return new ObjectMapper().readTree(recorded.getBody().readUtf8());
+    }
+
+    private void enqueueOk(int promptEvalCount) {
+        server.enqueue(new MockResponse()
+                .setHeader("Content-Type", "application/json")
+                .setBody("{\"model\":\"llama3\","
+                        + "\"message\":{\"role\":\"assistant\",\"content\":\"ok\"},"
+                        + "\"done\":true,\"prompt_eval_count\":" + promptEvalCount + ",\"eval_count\":1}"));
+    }
+
+    @Test
+    void sendsConfiguredNumCtxOnEveryRequest() throws Exception {
+        enqueueOk(10);
+
+        provider.complete("sys", List.of(ChatMessage.user("hi")), List.of(), "s1");
+
+        // Ollama otherwise caps the prompt at its own default and silently drops
+        // the overflow, taking the system prompt and tool schemas with it.
+        assertThat(sentBody().path("options").path("num_ctx").asInt())
+                .isEqualTo(cfg.getNumCtx());
+    }
+
+    @Test
+    void numCtxIsConfigurable() throws Exception {
+        cfg.setNumCtx(4321);
+        enqueueOk(10);
+
+        provider.complete("sys", List.of(ChatMessage.user("hi")), List.of(), "s2");
+
+        assertThat(sentBody().path("options").path("num_ctx").asInt()).isEqualTo(4321);
+    }
+
+    @Test
+    void numCtxZeroOmitsTheOptionSoTheServerDefaultApplies() throws Exception {
+        cfg.setNumCtx(0);
+        enqueueOk(10);
+
+        provider.complete("sys", List.of(ChatMessage.user("hi")), List.of(), "s3");
+
+        assertThat(sentBody().has("options")).isFalse();
+    }
+
+    @Test
+    void warnsOncePerSessionWhenThePromptCrowdsTheContextWindow() {
+        cfg.setNumCtx(1000);
+        ch.qos.logback.classic.Logger logger =
+                (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(OllamaProvider.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            // 850 of 1000 is past the 80% mark; a real truncation pins it at num_ctx.
+            enqueueOk(850);
+            enqueueOk(850);
+            provider.complete("sys", List.of(ChatMessage.user("hi")), List.of(), "noisy-session");
+            provider.complete("sys", List.of(ChatMessage.user("hi")), List.of(), "noisy-session");
+
+            assertThat(appender.list).hasSize(1);
+            assertThat(appender.list.get(0).getFormattedMessage())
+                    .contains("850")
+                    .contains("1000")
+                    .contains("num-ctx");
+        } finally {
+            logger.detachAppender(appender);
+        }
+    }
+
+    @Test
+    void staysQuietWhenThePromptFitsComfortably() {
+        cfg.setNumCtx(1000);
+        ch.qos.logback.classic.Logger logger =
+                (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(OllamaProvider.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            enqueueOk(100);
+            provider.complete("sys", List.of(ChatMessage.user("hi")), List.of(), "quiet-session");
+
+            assertThat(appender.list).isEmpty();
+        } finally {
+            logger.detachAppender(appender);
+        }
     }
 }

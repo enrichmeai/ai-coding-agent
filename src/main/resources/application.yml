@@ -128,6 +128,12 @@ agent:
       # JSON in `content`, which the tool-use loop cannot see. Verified working:
       # llama3.2:3b (2GB), qwen3-coder:30b (18GB).
       model: ${OLLAMA_MODEL:llama3.2:3b}
+      # Sent as options.num_ctx. Without it Ollama falls back to its own default
+      # (measured: 2050 in the bundled container, 4096 on host 0.12.11) and silently
+      # discards the overflow — the system prompt and tool schemas go first. A bare
+      # first turn already measures ~1.6k tokens and one tool result can add ~4k.
+      # 0 omits the option entirely so a server-side OLLAMA_CONTEXT_LENGTH can win.
+      num-ctx: ${OLLAMA_NUM_CTX:16384}
 
     copilot:
       api-key: ${GITHUB_COPILOT_TOKEN:${GITHUB_TOKEN:}}

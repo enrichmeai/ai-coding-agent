@@ -73,6 +73,48 @@ memory, which is why it does not fit a default Docker Desktop VM.
 
 Change it with `OLLAMA_MODEL=llama3.1:8b docker compose up -d`.
 
+## Context window — set it or lose your system prompt
+
+Ollama does not use a model's full context window unless you ask. Left alone it
+applies its own default and **silently discards whatever does not fit**, starting
+at the front of the payload: the system prompt and the tool schemas. Nothing
+errors and nothing is logged, so the only symptom is the agent quietly getting
+worse.
+
+Measured here with `llama3.2:3b` and a ~7,900-token prompt carrying a marker at
+the very start:
+
+| Path | `num_ctx` | Tokens actually evaluated | Recovered the marker? |
+|---|---|---|---|
+| Bundled container | default | **2050** | no — answered about something else entirely |
+| Host Ollama 0.12.11 | default | **4096** | no — same |
+| Either | 8192 / 16384 / 32768 | 7050 | yes |
+
+The model itself advertises a 131,072-token context and ships no `num_ctx`
+override, so this is purely about what the client asks for.
+
+The agent therefore sends `options.num_ctx` on every request, from
+`agent.llm.ollama.num-ctx` (`OLLAMA_NUM_CTX`), defaulting to **16384**. That is
+measured safe for a 3B model in an 8.2 GB Docker VM — 32768 also ran without an
+OOM kill. For scale, a bare first turn already costs ~1,600 tokens of system
+prompt and tool schemas, and a single tool result can add ~4,000 more, so the
+bundled default of 2050 is exceeded by about the second tool call of a real
+session.
+
+Two things to keep in mind:
+
+- **KV cache is allocated up front and scales with `num_ctx`.** A bigger model
+  plus a big window can exhaust the VM: `llama3.1:8b` (4.9 GB resident) at 32768
+  is far closer to the edge than `llama3.2:3b` at 16384. If the ollama container
+  starts dying, check `docker inspect ai-coding-agent-ollama --format '{{.State.OOMKilled}}'`
+  before suspecting anything else.
+- **`num-ctx: 0` omits the option**, letting a server-side `OLLAMA_CONTEXT_LENGTH`
+  win instead. Use that if you manage the Ollama server's configuration yourself.
+
+The agent logs a WARN, once per session, when a prompt uses more than 80% of the
+window — that is the signal you are about to start losing the front of the
+conversation.
+
 ## Faster: use an Ollama running on the host
 
 On macOS, containers get no Metal/GPU access, so the bundled Ollama is CPU-only
