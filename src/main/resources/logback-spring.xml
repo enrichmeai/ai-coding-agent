@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-    <!-- Default / dev profile: plain text with MDC -->
-    <springProfile name="default,dev">
+    <!-- Plain text with MDC everywhere except prod. Must NOT be keyed on the
+         "default" profile: activating any profile (e.g. storage-sqlite via
+         AGENT_STORAGE_TYPE) drops "default", which would leave the root logger
+         pointing at an undefined appender and silence all logging. -->
+    <springProfile name="!prod">
         <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
             <encoder>
                 <pattern>%d{HH:mm:ss.SSS} %-5level [%X{requestId:-}] [%X{userId:-}] [%X{sessionId:-}] %logger{30} - %msg%n</pattern>

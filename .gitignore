@@ -9,6 +9,7 @@ bin/
 .env
 logs/
 data/
+agent-workspace/
 .claude/settings.local.json
 graphify-out/
 gradle/wrapper/gradle-wrapper.jar

@@ -1,0 +1,26 @@
+# Override: use an Ollama already running on the HOST instead of the bundled
+# container, and drive it with a much stronger model.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.host-ollama.yml up -d
+#
+# Why you want this on macOS: containers get no Metal/GPU access, so the bundled
+# ollama service is CPU-only and is limited to small models by the Docker VM's
+# memory (docker info --format '{{.MemTotal}}'). A 3B model is fast enough but
+# too weak to reliably drive nine tool schemas — it degrades into emitting the
+# tool call as malformed text instead of a structured tool_call. Ollama on the
+# host is GPU-accelerated and can run a 30B coder model that tool-calls reliably.
+#
+# Still completely offline — the model runs on your machine either way.
+#
+# Requires on the host:  ollama serve  &&  ollama pull qwen3-coder:30b
+#
+# The bundled ollama service still starts (the agent's depends_on needs it, and
+# Compose 2.15 has no way to drop a dependency in an override). It just sits idle
+# — nothing routes to it in this mode. Stop it with:
+#   docker compose stop ollama
+services:
+  agent:
+    environment:
+      AGENT_LLM_PROVIDER: ollama
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3-coder:30b}

@@ -39,6 +39,7 @@ public class OllamaProvider implements LlmProvider {
     private final WebClient webClient;
     private final ObjectMapper mapper;
     private final AgentMetrics metrics;
+    private final TextToolCallParser textToolCallParser;
 
     public OllamaProvider(AgentProperties props,
                           WebClient.Builder webClientBuilder,
@@ -47,6 +48,7 @@ public class OllamaProvider implements LlmProvider {
         this.cfg = props.getLlm().getOllama();
         this.mapper = mapper;
         this.metrics = metrics;
+        this.textToolCallParser = new TextToolCallParser(mapper);
         this.webClient = webClientBuilder
                 .baseUrl(cfg.getBaseUrl())
                 .defaultHeader("content-type", MediaType.APPLICATION_JSON_VALUE)
@@ -168,6 +170,16 @@ public class OllamaProvider implements LlmProvider {
                 toolCalls.add(new ToolCall("call_" + UUID.randomUUID(), name, args));
             }
         }
+        // Local models often ignore the structured tool_calls field and emit the
+        // call as prose instead; recover those so the loop can still act on them.
+        if (toolCalls.isEmpty()) {
+            TextToolCallParser.Result recovered = textToolCallParser.parse(text);
+            if (!recovered.toolCalls().isEmpty()) {
+                text = recovered.text();
+                toolCalls = recovered.toolCalls();
+            }
+        }
+
         // Ollama uses prompt_eval_count / eval_count at the top level.
         TokenUsage tokens = new TokenUsage(
                 response.path("prompt_eval_count").asInt(0),
