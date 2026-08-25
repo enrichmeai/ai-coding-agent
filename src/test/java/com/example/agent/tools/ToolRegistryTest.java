@@ -94,4 +94,39 @@ class ToolRegistryTest {
         assertTrue(result.isError());
         assertTrue(result.content().contains("[output truncated"));
     }
+
+    @Test
+    @org.junit.jupiter.api.condition.EnabledOnOs({
+            org.junit.jupiter.api.condition.OS.MAC,
+            org.junit.jupiter.api.condition.OS.LINUX})
+    void aFailingBuildStaysDiagnosableAfterTruncation(@org.junit.jupiter.api.io.TempDir java.nio.file.Path workspace) {
+        // A real `./gradlew test` on a failing suite prints far more than 16 KB, and
+        // the part that matters — the failure summary — is at the very end. Head-only
+        // truncation would leave the agent staring at a dependency banner and no
+        // reason for the failure, so the tail has to survive.
+        AgentProperties props = new AgentProperties();
+        AgentProperties.Shell shellCfg = new AgentProperties.Shell();
+        shellCfg.setEnabled(true);
+        shellCfg.setTimeoutSeconds(60);
+        props.getTools().setShell(shellCfg);
+
+        ShellTool shell = new ShellTool(workspace, props);
+        ToolRegistry registry = new ToolRegistry(List.of(shell), props);
+
+        String command = "for i in $(seq 1 4000); do echo 'Download https://repo1.maven.org/artifact-'$i'.jar'; done; "
+                + "echo 'AgentControllerIT > healthHead() FAILED'; "
+                + "echo '    java.lang.AssertionError: Status expected:<200> but was:<405>'; "
+                + "echo 'BUILD FAILED in 46s'; exit 1";
+        ToolResult result = registry.invoke(new ToolCall("c-build", "shell", Map.of("command", command)));
+
+        assertTrue(result.isError(), "a failing build must surface as a tool error");
+        assertTrue(result.content().contains("[output truncated"), "expected truncation marker");
+        assertTrue(result.content().getBytes(StandardCharsets.UTF_8).length
+                        <= props.getTools().getMaxOutputBytes() + 200,
+                "truncated output should respect max-output-bytes");
+        // The three lines that actually explain the failure:
+        assertTrue(result.content().contains("healthHead() FAILED"), result.content());
+        assertTrue(result.content().contains("Status expected:<200> but was:<405>"), result.content());
+        assertTrue(result.content().contains("BUILD FAILED"), result.content());
+    }
 }

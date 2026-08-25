@@ -145,7 +145,10 @@ agent:
     max-output-bytes: 16384
     shell:
       enabled: ${AGENT_TOOLS_SHELL_ENABLED:true}
-      timeout-seconds: 60
+      # A first build in a fresh workspace (compile + tests) takes minutes, and a
+      # command that keeps printing holds the turn until it finishes, so 60s made
+      # './gradlew test' impossible. The model can still pass timeout_seconds.
+      timeout-seconds: ${AGENT_TOOLS_SHELL_TIMEOUT_SECONDS:600}
       blocked-patterns:
         - "^\\s*rm\\s+-rf\\s+/"
         - "^\\s*:\\(\\)\\{"

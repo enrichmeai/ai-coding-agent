@@ -142,3 +142,54 @@ docker compose -f docker-compose.yml -f docker-compose.host-ollama.yml up -d
 - The agent container keeps its hardening (`read_only`, `cap_drop: ALL`,
   `no-new-privileges`, `pids_limit`, 1 GB cap). Don't copy those onto the Ollama
   service — it needs several GB to hold a model.
+
+## The agent's own toolchain
+
+The runtime image carries a **JDK and a seeded Gradle home**, not just a JRE, so
+the agent can compile and test the code it edits. Without that it can only write
+plausible-looking code and hope — see `docs/real-repo-validation.md`, where it
+invented a Spring annotation that does not exist and had no way to find out.
+
+What ships in the image:
+
+- `eclipse-temurin:21-jdk-jammy` (so `javac` exists at all)
+- `/opt/gradle-seed` — the Gradle wrapper distribution plus every dependency this
+  project resolves, including the test-runtime ones
+
+`docker-entrypoint.sh` copies the seed into `GRADLE_USER_HOME` on first start.
+It is copied rather than used in place because Gradle writes locks and caches
+into its home and the container filesystem is read-only; the destination is the
+`agent-gradle` volume, so the copy happens once rather than on every restart.
+
+Verified with the network genuinely absent:
+
+```bash
+docker run -d --name probe --network none --read-only \
+  --tmpfs /tmp:exec --tmpfs /home/agent/.cache \
+  -v toolchain-gradle:/home/agent/.gradle -v toolchain-data:/data \
+  -v /path/to/a/fresh/clone:/workspace \
+  -e AGENT_STORAGE_TYPE=sqlite ai-coding-agent:latest
+docker exec probe bash -lc 'cd /workspace && rm -rf build .gradle && ./gradlew test'
+# BUILD SUCCESSFUL in 47s — 4 actionable tasks: 4 executed
+```
+
+**Cost: the image goes from 519 MB to 1.39 GB.** That buys an agent that can
+verify its own work. If you only ever use it to answer questions about code, the
+JRE image was cheaper; if you want it to finish a change, this is the price.
+
+Two things had to change to make a build survive the tool layer:
+
+- **The image ships Gradle on `PATH`, so the agent runs `gradle test`, not
+  `./gradlew test`.** The wrapper jar is deliberately not in the repository
+  (`CLAUDE.md`, `bootstrap.sh`, and a CI step all say so), and the agent could
+  never run `bootstrap.sh` to fetch one: `curl` and `wget` are on the shell
+  block-list, and the whole point is to work offline. Putting Gradle in the image
+  solves that without reversing the project's decision — the image build still
+  bootstraps the wrapper the normal way for its own compile step.
+- **The shell timeout default is now 600s** (`AGENT_TOOLS_SHELL_TIMEOUT_SECONDS`).
+  At 60s no real build could finish. The timeout is now enforced by a watchdog:
+  previously output was drained to EOF *before* the clock was checked, so a
+  command that kept printing held the turn for its entire run and then reported
+  success — the timeout never fired for exactly the commands that needed it.
+  `ShellTool` also keeps the head *and tail* of long output, because a build
+  prints dependency noise first and the reason it failed last.

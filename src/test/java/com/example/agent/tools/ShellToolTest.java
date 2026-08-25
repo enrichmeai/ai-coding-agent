@@ -220,4 +220,45 @@ class ShellToolTest {
         assertTrue(result.isError(), "Block-list should reject curl even if it's in allow-list");
         assertTrue(result.content().contains("blocked by policy"));
     }
+
+    @Test
+    @EnabledOnOs({OS.MAC, OS.LINUX})
+    void killsACommandThatKeepsPrintingPastTheTimeout(@TempDir Path workspace) {
+        // Regression: output was drained to EOF before the clock was checked, so a
+        // command that kept printing held the turn for its whole run and then
+        // reported success. A Gradle build is exactly that shape.
+        AgentProperties props = new AgentProperties();
+        AgentProperties.Shell shellCfg = new AgentProperties.Shell();
+        shellCfg.setEnabled(true);
+        shellCfg.setTimeoutSeconds(1);
+        props.getTools().setShell(shellCfg);
+        ShellTool tool = new ShellTool(workspace, props);
+
+        long start = System.currentTimeMillis();
+        ToolResult r = tool.execute("t-slow",
+                Map.of("command", "for i in $(seq 1 100); do echo line $i; sleep 0.2; done"));
+        long elapsedMs = System.currentTimeMillis() - start;
+
+        assertTrue(r.isError(), r.content());
+        assertTrue(r.content().contains("timed out"), r.content());
+        // Would be ~20s if the timeout were ignored.
+        assertTrue(elapsedMs < 10_000, "took " + elapsedMs + "ms; timeout was not enforced");
+    }
+
+    @Test
+    @EnabledOnOs({OS.MAC, OS.LINUX})
+    void perCallTimeoutOverrideIsHonoured(@TempDir Path workspace) {
+        AgentProperties props = new AgentProperties();
+        AgentProperties.Shell shellCfg = new AgentProperties.Shell();
+        shellCfg.setEnabled(true);
+        shellCfg.setTimeoutSeconds(600);
+        props.getTools().setShell(shellCfg);
+        ShellTool tool = new ShellTool(workspace, props);
+
+        ToolResult r = tool.execute("t-override",
+                Map.of("command", "sleep 30", "timeout_seconds", 1));
+
+        assertTrue(r.isError());
+        assertTrue(r.content().contains("timed out"), r.content());
+    }
 }

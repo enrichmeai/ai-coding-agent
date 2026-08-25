@@ -12,6 +12,7 @@ data/
 agent-workspace/
 .claude/settings.local.json
 graphify-out/
+
 gradle/wrapper/gradle-wrapper.jar
 
 # The agent's own scratch directory — runtime output, never source.

@@ -70,6 +70,11 @@ services:
       # is unreliable and writes fail with SQLITE_BUSY mid-conversation.
       # Extract it with: docker compose cp agent:/data/agent.db ./agent.db
       - agent-data:/data
+      # Gradle home. Seeded from the image on first start (see
+      # docker-entrypoint.sh) so the agent can build and test what it edits with
+      # no network. A volume, not a tmpfs: re-copying the seed on every restart
+      # is slow, and the container filesystem is read-only.
+      - agent-gradle:/home/agent/.gradle
       - ${AGENT_WORKSPACE_HOST:-./agent-workspace}:/workspace   # the folder the agent edits
     restart: unless-stopped
     extra_hosts:
@@ -85,8 +90,9 @@ services:
     security_opt:
       - no-new-privileges:true
     pids_limit: 256
-    mem_limit: 1g
+    mem_limit: 2g          # a Gradle build in /workspace needs more than the agent itself
 
 volumes:
   ollama-models:
   agent-data:
+  agent-gradle:
