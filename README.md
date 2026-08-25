@@ -319,3 +319,26 @@ as it's produced, which the SSE controller relays to the client.
 - The agent is restricted to `agent.workspace`; attempts to access paths outside are rejected with a `SecurityException`.
 - The `shell` tool runs inside the workspace and applies the `blocked-patterns` regex list. **Treat it like giving the LLM shell access on your machine** — start with a throwaway directory.
 - `git` is whitelisted to a small set of safe subcommands (no `push`, no `reset --hard`, no `rebase`).
+
+## Authentication and the audit log
+
+Auth ships **off** (`AGENT_AUTH_ENABLED=false`) so the agent starts with no setup. With it
+off there is no security context, so every row in `audit_events` records the user as
+`anonymous` — the log tells you *what* happened, not *who* asked for it.
+
+If the audit trail is a reason you are running this, turn auth on before anything else:
+
+```bash
+export AGENT_AUTH_ENABLED=true
+export AGENT_AUTH_MODE=oidc                       # or `basic` for a quick local run
+export AGENT_OIDC_ISSUER_URI=https://your-idp.example/
+export AGENT_OIDC_AUDIENCE=ai-coding-agent
+```
+
+The principal then comes from the token (`AGENT_OIDC_PRINCIPAL_CLAIM`, default `sub`) and
+is what every LLM call and tool invocation is attributed to.
+
+## Licence
+
+Apache License 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE). Free for commercial use,
+no strings.
