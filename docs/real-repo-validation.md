@@ -82,8 +82,60 @@ turns with no truncation warning, which before issue #1 would have been
 impossible. The binding constraints now are turn economy and the missing
 toolchain.
 
+## Re-run after #9 (recursive `list_dir`)
+
+The multi-file task was run twice more, once after each half of the #9 fix.
+
+| Run | `list_dir` behaviour | What the agent did | Outcome |
+|---|---|---|---|
+| Original | single-level | six turns walking `src/test → … → controller` | nothing produced |
+| After adding `depth` | `depth` available, default 1 | **walked the tree exactly as before** | nothing produced |
+| After chain collapsing, default depth 2 | package chains collapsed | never called `list_dir`; used `glob {path, **/*Test.java}` then `grep` | **both edits made** |
+
+Two things are worth separating here.
+
+**Adding the parameter changed nothing.** The second run had `depth` in the
+schema and in the tool description, and the model ignored it completely, issuing
+the same six single-level calls. A capability a model does not reach for is not
+a capability. That is what motivated collapsing single-child chains: the caller
+gets the whole package tree without having to ask for it.
+
+**The third run's success is not cleanly attributable to the fix.** The agent
+did not call `list_dir` at all — it found the test file with `glob` scoped by
+`path`, which it had not tried before. With one sample per configuration, the
+honest statement is that the six-turn tree-walk did not recur and the task got
+much further; not that the fix caused it. Run-to-run variation on a local model
+is wide, and two runs are not a measurement.
+
+What the unit tests do establish independently: one `list_dir` call on
+`src/test` now returns `java/com/example/agent/controller/` and the files inside
+it, where before it returned `java/` alone.
+
+### The third run got further, and that exposed the next wall
+
+It stopped on the **per-request token budget** (50,000) rather than the turn cap,
+and only after making both edits — in the right files, in the right places, in
+the existing test's style:
+
+```java
+@HeadMapping("/health")
+public ResponseEntity<Void> healthHead() {
+    return ResponseEntity.ok().build();
+}
+```
+
+**This does not compile.** Spring has `@GetMapping` and `@PostMapping` but no
+`@HeadMapping` (verified against spring-web 6.1.13); the correct form is
+`@RequestMapping(method = RequestMethod.HEAD)`. Two imports are missing as well,
+and the agent's last act before running out of budget was to go looking for them.
+
+So the failure has moved up a level. It is no longer "cannot find the file". It
+is "writes plausible code and has no way to discover it is wrong" — which is
+exactly #10. Without a compiler the agent cannot tell a real annotation from an
+invented one, and a human still has to be the build step.
+
 ## Follow-ups
 
-- #9 — make `list_dir` recursive with a depth limit
+- #9 — make `list_dir` recursive with a depth limit — **done**; see the re-run above
 - #10 — give the agent a toolchain so it can build and test its own edits
 - #4 — revisit `max-turns-per-request` with these numbers (was already gated on this run)
