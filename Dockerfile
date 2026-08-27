@@ -7,7 +7,12 @@
 # not exist and had no way to find out.
 
 # ----- build stage -----
-FROM gradle:8.10.2-jdk21 AS build
+# Pinned to the BUILDER's platform: everything this stage produces (the jar,
+# the Gradle distribution, the dependency seed) is arch-independent bytecode,
+# so multi-arch releases build it once natively instead of re-running the
+# whole test suite under QEMU emulation per target arch. Only the runtime
+# stage below is per-architecture.
+FROM --platform=$BUILDPLATFORM gradle:8.10.2-jdk21 AS build
 WORKDIR /workspace
 
 # Populate a Gradle home we can ship: the wrapper distribution plus every
