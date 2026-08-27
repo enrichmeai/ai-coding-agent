@@ -213,6 +213,7 @@ public class AgentProperties {
         private Shell shell = new Shell();
         private File file = new File();
         private Jira jira = new Jira();
+        private Cistern cistern = new Cistern();
         private int maxOutputBytes = 16_384;
 
         public Shell getShell() { return shell; }
@@ -220,6 +221,7 @@ public class AgentProperties {
         public File getFile() { return file; }
         public void setFile(File file) { this.file = file; }
         public Jira getJira() { return jira; }
+        public Cistern getCistern() { return cistern; }
         public void setJira(Jira jira) { this.jira = jira; }
         public int getMaxOutputBytes() { return maxOutputBytes; }
         public void setMaxOutputBytes(int maxOutputBytes) { this.maxOutputBytes = maxOutputBytes; }
@@ -254,6 +256,26 @@ public class AgentProperties {
 
     public static class Jira {
         private String baseUrl = "";
+        private String token = "";
+
+        public String getBaseUrl() { return baseUrl; }
+        public void setBaseUrl(String baseUrl) { this.baseUrl = baseUrl; }
+        public String getToken() { return token; }
+        public void setToken(String token) { this.token = token; }
+    }
+
+    /**
+     * The Cistern pod this agent may reach, and the credential it reaches it with.
+     *
+     * <p>The credential is the <em>agent's own</em>, not its user's. Cistern resolves it to a
+     * WebID belonging to this application, so a grant written for this agent is a grant to it
+     * alone — and revoking it stops this agent without touching anyone else. That is the point
+     * of pointing the agent at a pod rather than at a directory.
+     */
+    public static class Cistern {
+        /** e.g. http://localhost:3737 — the pod's base URL. */
+        private String baseUrl = "";
+        /** This agent's own service credential, as configured in the pod. */
         private String token = "";
 
         public String getBaseUrl() { return baseUrl; }
