@@ -150,6 +150,9 @@ docker compose up -d --build
 ./scripts/demo-offline.sh                           # proves the whole loop works
 ```
 
+Building the image requires BuildKit (the default since Docker 23). On older
+engines, prefix builds with `DOCKER_BUILDKIT=1`.
+
 Out of the box this needs **no API key and no internet** beyond a one-time model
 download: compose also starts an Ollama container and pulls `llama3.2:3b` into a
 volume. Open **http://localhost:8090**. Full walkthrough, model-choice guidance

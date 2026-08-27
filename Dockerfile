@@ -12,6 +12,9 @@
 # so multi-arch releases build it once natively instead of re-running the
 # whole test suite under QEMU emulation per target arch. Only the runtime
 # stage below is per-architecture.
+#
+# Requires BuildKit ($BUILDPLATFORM is BuildKit-defined) — the default builder
+# since Docker 23. On older engines: DOCKER_BUILDKIT=1 docker build ...
 FROM --platform=$BUILDPLATFORM gradle:8.10.2-jdk21 AS build
 WORKDIR /workspace
 
