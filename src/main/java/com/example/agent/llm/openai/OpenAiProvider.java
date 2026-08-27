@@ -9,11 +9,9 @@ import com.example.agent.model.Role;
 import com.example.agent.model.TokenUsage;
 import com.example.agent.model.ToolCall;
 import com.example.agent.model.ToolResult;
-import com.example.agent.service.AuditLogger;
 import com.example.agent.tools.ToolSpec;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -43,7 +41,6 @@ public class OpenAiProvider implements LlmProvider {
     private final WebClient webClient;
     private final ObjectMapper mapper;
     private final AgentMetrics metrics;
-    private AuditLogger auditLogger;
 
     public OpenAiProvider(AgentProperties props,
                           WebClient.Builder webClientBuilder,
@@ -58,11 +55,6 @@ public class OpenAiProvider implements LlmProvider {
                         "Bearer " + (cfg.getApiKey() == null ? "" : cfg.getApiKey()))
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .build();
-    }
-
-    @Autowired(required = false)
-    public void setAuditLogger(AuditLogger auditLogger) {
-        this.auditLogger = auditLogger;
     }
 
     @Override public String name() { return "openai"; }
@@ -93,17 +85,11 @@ public class OpenAiProvider implements LlmProvider {
                     .block());
         } catch (Exception e) {
             metrics.recordLlmCall(name(), false, 0, 0);
-            if (auditLogger != null) {
-                auditLogger.llmCall(sessionId, name(), 0, 0, false);
-            }
             throw e;
         }
 
         CompletionResult result = parseResponse(response);
         metrics.recordLlmCall(name(), true, result.usage().inputTokens(), result.usage().outputTokens());
-        if (auditLogger != null) {
-            auditLogger.llmCall(sessionId, name(), result.usage().inputTokens(), result.usage().outputTokens(), true);
-        }
         return result;
     }
 
@@ -147,9 +133,6 @@ public class OpenAiProvider implements LlmProvider {
                     .forEach(line -> handleStreamEvent(line, textBuf, toolBufs, usageRef, onToken));
         } catch (Exception e) {
             metrics.recordLlmCall(name(), false, 0, 0);
-            if (auditLogger != null) {
-                auditLogger.llmCall(sessionId, name(), 0, 0, false);
-            }
             throw e;
         }
 
@@ -169,9 +152,6 @@ public class OpenAiProvider implements LlmProvider {
         CompletionResult result = new CompletionResult(
                 ChatMessage.assistant(textBuf.toString(), toolCalls), usage);
         metrics.recordLlmCall(name(), true, usage.inputTokens(), usage.outputTokens());
-        if (auditLogger != null) {
-            auditLogger.llmCall(sessionId, name(), usage.inputTokens(), usage.outputTokens(), true);
-        }
         return result;
     }
 

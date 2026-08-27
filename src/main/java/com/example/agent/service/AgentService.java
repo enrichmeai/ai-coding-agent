@@ -7,6 +7,7 @@ import com.example.agent.model.*;
 import com.example.agent.tools.ToolRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -31,6 +32,7 @@ public class AgentService {
     private final ToolRegistry tools;
     private final AgentProperties props;
     private final SessionStore sessionStore;
+    private AuditLogger auditLogger;
 
     public AgentService(LlmProvider llm,
                         ToolRegistry tools,
@@ -40,6 +42,11 @@ public class AgentService {
         this.tools = tools;
         this.props = props;
         this.sessionStore = sessionStore;
+    }
+
+    @Autowired(required = false)
+    public void setAuditLogger(AuditLogger auditLogger) {
+        this.auditLogger = auditLogger;
     }
 
     /** Synchronous: runs the full loop, returns all new messages. */
@@ -97,20 +104,34 @@ public class AgentService {
                 return;
             }
 
-            // Use windowed history for the LLM call
+            // Use windowed history for the LLM call. Audit here — not in the
+            // providers — so the event carries the session owner resolved on
+            // the request thread; the SecurityContext is absent on SSE threads.
             List<ChatMessage> windowedHist = windowedHistory(session.getHistory());
-            CompletionResult result = props.getLlm().isStreamingEnabled()
-                    ? llm.completeStreaming(
-                            props.getLlm().getSystemPrompt(),
-                            windowedHist,
-                            tools.specs(),
-                            session.getId(),
-                            onToken)
-                    : llm.complete(
-                            props.getLlm().getSystemPrompt(),
-                            windowedHist,
-                            tools.specs(),
-                            session.getId());
+            CompletionResult result;
+            try {
+                result = props.getLlm().isStreamingEnabled()
+                        ? llm.completeStreaming(
+                                props.getLlm().getSystemPrompt(),
+                                windowedHist,
+                                tools.specs(),
+                                session.getId(),
+                                onToken)
+                        : llm.complete(
+                                props.getLlm().getSystemPrompt(),
+                                windowedHist,
+                                tools.specs(),
+                                session.getId());
+            } catch (RuntimeException | Error e) {
+                if (auditLogger != null) {
+                    auditLogger.llmCall(session.getUserId(), session.getId(), llm.name(), 0, 0, false);
+                }
+                throw e;
+            }
+            if (auditLogger != null) {
+                auditLogger.llmCall(session.getUserId(), session.getId(), llm.name(),
+                        result.usage().inputTokens(), result.usage().outputTokens(), true);
+            }
             session.addUsage(result.usage());
             perRequestTotal += result.usage().total();
             ChatMessage assistant = result.message();
@@ -143,7 +164,7 @@ public class AgentService {
             List<ToolResult> results = new ArrayList<>();
             for (ToolCall call : assistant.toolCalls()) {
                 log.info("LLM invoked tool: {} args={}", call.name(), call.arguments());
-                results.add(tools.invoke(call, session.getId()));
+                results.add(tools.invoke(call, session.getId(), session.getUserId()));
             }
             appendAndEmit(session, ChatMessage.tool(results), emit);
         }

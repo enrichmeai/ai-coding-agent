@@ -1,6 +1,5 @@
 package com.example.agent.service;
 
-import com.example.agent.config.CurrentUser;
 import com.example.agent.service.persistence.AuditEventEntity;
 import com.example.agent.service.persistence.AuditEventRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -22,21 +21,19 @@ public class AuditLoggerTest {
 
     private AuditLogger auditLogger;
     private MockAuditEventRepository mockRepo;
-    private CurrentUser mockCurrentUser;
     private ObjectMapper mapper;
 
     @BeforeEach
     public void setUp() {
         mockRepo = new MockAuditEventRepository();
-        mockCurrentUser = new MockCurrentUser("alice");
         mapper = new ObjectMapper();
-        auditLogger = new AuditLogger(mockRepo, mapper, mockCurrentUser);
+        auditLogger = new AuditLogger(mockRepo, mapper);
     }
 
     @Test
     public void testToolCall_Success() {
         // Act
-        auditLogger.toolCall("session-1", "read_file", Map.of("path", "/etc/passwd"), true, 1024);
+        auditLogger.toolCall("alice", "session-1", "read_file", Map.of("path", "/etc/passwd"), true, 1024);
 
         // Assert
         assertEquals(1, mockRepo.saved.size());
@@ -53,7 +50,7 @@ public class AuditLoggerTest {
     @Test
     public void testToolCall_Failure() {
         // Act
-        auditLogger.toolCall("session-1", "write_file", Map.of("path", "/restricted"), false, 0);
+        auditLogger.toolCall("alice", "session-1", "write_file", Map.of("path", "/restricted"), false, 0);
 
         // Assert
         assertEquals(1, mockRepo.saved.size());
@@ -65,7 +62,7 @@ public class AuditLoggerTest {
     @Test
     public void testLlmCall_Success() {
         // Act
-        auditLogger.llmCall("session-1", "anthropic", 1000, 500, true);
+        auditLogger.llmCall("alice", "session-1", "anthropic", 1000, 500, true);
 
         // Assert
         assertEquals(1, mockRepo.saved.size());
@@ -81,7 +78,7 @@ public class AuditLoggerTest {
     @Test
     public void testLlmCall_Failure() {
         // Act
-        auditLogger.llmCall("session-1", "openai", 0, 0, false);
+        auditLogger.llmCall("alice", "session-1", "openai", 0, 0, false);
 
         // Assert
         assertEquals(1, mockRepo.saved.size());
@@ -93,11 +90,11 @@ public class AuditLoggerTest {
     @Test
     public void testNoRepository_NullRepo() {
         // Arrange: AuditLogger with null repo
-        AuditLogger auditLoggerNoRepo = new AuditLogger(null, mapper, mockCurrentUser);
+        AuditLogger auditLoggerNoRepo = new AuditLogger(null, mapper);
 
         // Act: should not throw
-        auditLoggerNoRepo.toolCall("session-1", "test_tool", Map.of(), true, 0);
-        auditLoggerNoRepo.llmCall("session-1", "anthropic", 0, 0, true);
+        auditLoggerNoRepo.toolCall("alice", "session-1", "test_tool", Map.of(), true, 0);
+        auditLoggerNoRepo.llmCall("alice", "session-1", "anthropic", 0, 0, true);
 
         // Assert: nothing saved
         assertEquals(0, mockRepo.saved.size());
@@ -106,13 +103,25 @@ public class AuditLoggerTest {
     @Test
     public void testSessionIdNull() {
         // Act
-        auditLogger.toolCall(null, "bash", Map.of("cmd", "echo hello"), true, 100);
+        auditLogger.toolCall("alice", null, "bash", Map.of("cmd", "echo hello"), true, 100);
 
         // Assert
         assertEquals(1, mockRepo.saved.size());
         AuditEventEntity event = mockRepo.saved.get(0);
         assertNull(event.getSessionId());
         assertEquals("tool_call", event.getEventType());
+    }
+
+    @Test
+    public void testNullUser_RecordedAsAnonymous() {
+        // A null/blank user (e.g. a caller that never resolved one) must never
+        // NPE and is attributed to "anonymous".
+        auditLogger.toolCall(null, "session-1", "bash", Map.of(), true, 0);
+        auditLogger.llmCall("  ", "session-1", "anthropic", 1, 2, true);
+
+        assertEquals(2, mockRepo.saved.size());
+        assertEquals("anonymous", mockRepo.saved.get(0).getUserId());
+        assertEquals("anonymous", mockRepo.saved.get(1).getUserId());
     }
 
     /**
@@ -267,22 +276,6 @@ public class AuditLoggerTest {
         public List<AuditEventEntity> findByUserIdOrderByTimestampDesc(String userId,
                                                                         org.springframework.data.domain.Pageable pageable) {
             return java.util.Collections.emptyList();
-        }
-    }
-
-    /**
-     * Mock CurrentUser for testing.
-     */
-    private static class MockCurrentUser extends CurrentUser {
-        private final String name;
-
-        MockCurrentUser(String name) {
-            this.name = name;
-        }
-
-        @Override
-        public String name() {
-            return name;
         }
     }
 }

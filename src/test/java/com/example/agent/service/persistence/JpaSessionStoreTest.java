@@ -111,4 +111,22 @@ class JpaSessionStoreTest {
         assertThat(store.get(s.getId())).isPresent();
         assertThat(store.get(s.getId()).get().getHistory()).hasSize(1);
     }
+
+    @Test
+    void updatePersistsTitleWhenSecurityContextIsAbsent() {
+        // The agent loop calls update() from a pooled SSE thread where the
+        // SecurityContext is absent, so the thread's identity resolves to
+        // "anonymous". The update must be scoped by the session's own userId
+        // (ownership was enforced when the session was loaded), or the title
+        // written mid-stream is silently dropped.
+        user.who = "alice";
+        Session s = store.create();
+
+        user.who = CurrentUser.ANONYMOUS;   // what me() yields on the SSE thread
+        s.setTitle("First message title");
+        store.update(s);
+
+        assertThat(sessionRepo.findById(s.getId()).orElseThrow().getTitle())
+                .isEqualTo("First message title");
+    }
 }
