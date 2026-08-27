@@ -204,4 +204,38 @@ class SecurityConfigTest {
             mvc.perform(get("/api/health")).andExpect(status().isOk());
         }
     }
+
+    // ---------- auth ON, no password configured (issue #18) ----------
+
+    @SpringBootTest
+    @AutoConfigureMockMvc
+    @TestPropertySource(properties = {
+            "agent.auth.enabled=true",
+            "agent.auth.mode=basic",
+            "agent.auth.username=admin",
+            // deliberately NO agent.auth.password — the shipped default must
+            // not authenticate; a random password is generated instead.
+            "agent.llm.provider=stub",
+            "agent.workspace=${java.io.tmpdir}/agent-test-sec-nopass",
+            "agent.storage.type=memory",
+            "agent.rate-limit.enabled=false"
+    })
+    @org.springframework.context.annotation.Import(StubCfg.class)
+    @Nested class AuthOnWithoutPassword {
+        @Autowired MockMvc mvc;
+
+        @Test
+        void knownDefaultPasswordIsRejected() throws Exception {
+            String creds = java.util.Base64.getEncoder()
+                    .encodeToString("admin:change-me".getBytes());
+            mvc.perform(get("/api/tools").header(AUTHORIZATION, "Basic " + creds))
+               .andExpect(status().isUnauthorized());
+        }
+
+        @Test
+        void healthStaysOpenAndOtherEndpointsStayGated() throws Exception {
+            mvc.perform(get("/api/health")).andExpect(status().isOk());
+            mvc.perform(get("/api/tools")).andExpect(status().isUnauthorized());
+        }
+    }
 }

@@ -61,7 +61,9 @@ services:
       # ---- Auth ----
       AGENT_AUTH_ENABLED:  ${AGENT_AUTH_ENABLED:-false}
       AGENT_AUTH_USERNAME: ${AGENT_AUTH_USERNAME:-admin}
-      AGENT_AUTH_PASSWORD: ${AGENT_AUTH_PASSWORD:-change-me}
+      # No default: leaving it unset makes the app generate a random password
+      # and log it at startup (docker compose logs agent | grep password).
+      AGENT_AUTH_PASSWORD: ${AGENT_AUTH_PASSWORD:-}
 
       JAVA_OPTS: "-Xmx512m"
     volumes:

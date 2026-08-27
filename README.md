@@ -242,7 +242,8 @@ overridden with env vars or `--agent.*=value` command-line flags.
 | `agent.storage.sqlite-path` | `./data/agent.db` | `AGENT_SQLITE_PATH` | SQLite DB file. |
 | `agent.auth.enabled` | `false` | `AGENT_AUTH_ENABLED` | Enable HTTP Basic auth. |
 | `agent.auth.username` | `admin` | `AGENT_AUTH_USERNAME` | |
-| `agent.auth.password` | `change-me` | `AGENT_AUTH_PASSWORD` | |
+| `agent.auth.password` | *(generated at startup if unset)* | `AGENT_AUTH_PASSWORD` | Unset (or the old `change-me`) → a random password is generated and logged once. |
+| `agent.cors.allowed-origins` | *(none — cross-origin locked)* | `AGENT_CORS_ALLOWED_ORIGINS` | Comma-separated origins granted CORS with credentials; `*` allows any origin without credentials. The bundled UI is same-origin and needs none. |
 | `agent.llm.provider` | `copilot` | `AGENT_LLM_PROVIDER` | `copilot` \| `anthropic` \| `openai` \| `ollama`. |
 | `agent.llm.max-iterations` | `25` | — | Safety cap on the tool-use loop per turn. |
 | `agent.llm.copilot.api-key` | — | `GITHUB_COPILOT_TOKEN` / `GITHUB_TOKEN` | GitHub Copilot / GitHub Models token. |

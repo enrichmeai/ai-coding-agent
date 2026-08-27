@@ -82,11 +82,41 @@ public class SecurityConfig {
     @ConditionalOnProperty(prefix = "agent.auth", name = "mode", havingValue = "basic", matchIfMissing = true)
     public UserDetailsService users(PasswordEncoder encoder) {
         AgentProperties.Auth a = props.getAuth();
+        String username = a.getUsername() == null ? "admin" : a.getUsername();
         return new InMemoryUserDetailsManager(
-                User.withUsername(a.getUsername() == null ? "admin" : a.getUsername())
-                    .password(encoder.encode(a.getPassword() == null ? "change-me" : a.getPassword()))
+                User.withUsername(username)
+                    .password(encoder.encode(resolvePassword(username, a.getPassword())))
                     .roles("USER")
                     .build());
+    }
+
+    /**
+     * Issue #18: a shipped constant password must never authenticate. When no
+     * password is configured — or it was left at the historically documented
+     * "change-me" — generate a random one and log it once, Spring Security's
+     * own first-run pattern. API clients that need a stable password set
+     * AGENT_AUTH_PASSWORD.
+     */
+    private String resolvePassword(String username, String configured) {
+        if (configured != null && !configured.isBlank() && !"change-me".equals(configured)) {
+            return configured;
+        }
+        byte[] bytes = new byte[24];
+        new java.security.SecureRandom().nextBytes(bytes);
+        String generated = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        log.warn("""
+
+                ****************************************************************
+                agent.auth.password is not set{} — generated a random password.
+
+                    user: {}
+                    password: {}
+
+                Set AGENT_AUTH_PASSWORD to use a stable password.
+                ****************************************************************""",
+                "change-me".equals(configured) ? " (the known default 'change-me' is refused)" : "",
+                username, generated);
+        return generated;
     }
 
     @Bean
@@ -214,15 +244,33 @@ public class SecurityConfig {
     }
 
     /**
-     * Permissive CORS for development. Lock down {@code allowedOrigins} in prod.
+     * Cross-origin policy (issue #17). Default is locked: no origins allowed —
+     * the bundled UI is same-origin and needs no CORS. Operators serving a UI
+     * from another origin list it in {@code agent.cors.allowed-origins}
+     * (env {@code AGENT_CORS_ALLOWED_ORIGINS}), which grants it WITH
+     * credentials. The single entry "*" allows any origin but with credentials
+     * disabled — reflecting arbitrary origins while sending
+     * Access-Control-Allow-Credentials lets any website ride a logged-in
+     * browser session, so that combination is never produced.
      */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
+        List<String> origins = props.getCors().getAllowedOrigins().stream()
+                .filter(o -> o != null && !o.isBlank())
+                .map(String::trim)
+                .toList();
+
         CorsConfiguration cfg = new CorsConfiguration();
-        cfg.setAllowedOriginPatterns(List.of("*"));
+        if (origins.contains("*")) {
+            cfg.setAllowedOrigins(List.of(CorsConfiguration.ALL));
+            cfg.setAllowCredentials(false);
+        } else if (!origins.isEmpty()) {
+            cfg.setAllowedOrigins(origins);
+            cfg.setAllowCredentials(true);
+        }
+        // else: no allowed origins — every cross-origin request is denied.
         cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         cfg.setAllowedHeaders(List.of("*"));
-        cfg.setAllowCredentials(true);
         cfg.setExposedHeaders(List.of("Content-Type", "Cache-Control", "X-Request-Id"));
 
         UrlBasedCorsConfigurationSource src = new UrlBasedCorsConfigurationSource();

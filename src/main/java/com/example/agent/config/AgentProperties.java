@@ -15,6 +15,7 @@ public class AgentProperties {
     private Tools tools = new Tools();
     private Storage storage = new Storage();
     private Auth auth = new Auth();
+    private Cors cors = new Cors();
     private Sse sse = new Sse();
     private RateLimit rateLimit = new RateLimit();
 
@@ -31,6 +32,9 @@ public class AgentProperties {
     public void setStorage(Storage storage) { this.storage = storage; }
 
     public Auth getAuth() { return auth; }
+
+    public Cors getCors() { return cors; }
+    public void setCors(Cors cors) { this.cors = cors; }
     public void setAuth(Auth auth) { this.auth = auth; }
 
     public Sse getSse() { return sse; }
@@ -325,8 +329,13 @@ public class AgentProperties {
         private String mode = "basic";
         // ---- Basic-mode legacy settings ----
         private String username = "admin";
-        /** Password in plain text. For production, use a secret manager. */
-        private String password = "change-me";
+        /**
+         * Password in plain text; for production, use a secret manager. No
+         * shipped default: when unset (or left at the historical "change-me"),
+         * SecurityConfig generates a random password at startup and logs it —
+         * a documented constant must never authenticate.
+         */
+        private String password;
         // ---- OIDC-mode settings ----
         private Oidc oidc = new Oidc();
 
@@ -340,6 +349,21 @@ public class AgentProperties {
         public void setPassword(String password) { this.password = password; }
         public Oidc getOidc() { return oidc; }
         public void setOidc(Oidc oidc) { this.oidc = oidc; }
+    }
+
+    /**
+     * Cross-origin policy for browser clients. Default is locked: no
+     * cross-origin grants at all — the bundled UI is served same-origin and
+     * needs none. Listing origins enables them with credentials; the single
+     * entry "*" allows any origin but with credentials disabled (never both).
+     */
+    public static class Cors {
+        private List<String> allowedOrigins = List.of();
+
+        public List<String> getAllowedOrigins() { return allowedOrigins; }
+        public void setAllowedOrigins(List<String> allowedOrigins) {
+            this.allowedOrigins = allowedOrigins == null ? List.of() : allowedOrigins;
+        }
     }
 
     /**

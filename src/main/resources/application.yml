@@ -67,7 +67,15 @@ agent:
     mode: ${AGENT_AUTH_MODE:basic}
     # ---- Basic-mode (legacy / transitional) ----
     username: ${AGENT_AUTH_USERNAME:admin}
-    password: ${AGENT_AUTH_PASSWORD:change-me}
+    # No shipped default: unset (or the historical "change-me") means a random
+    # password is generated and logged at startup — see SecurityConfig.
+    password: ${AGENT_AUTH_PASSWORD:}
+
+  cors:
+    # Comma-separated origins granted CORS WITH credentials; "*" allows any
+    # origin WITHOUT credentials; empty (default) = no cross-origin access.
+    # The bundled UI is served same-origin and needs none of this.
+    allowed-origins: ${AGENT_CORS_ALLOWED_ORIGINS:}
     # ---- OIDC-mode (production) ----
     oidc:
       issuer-uri:       ${AGENT_OIDC_ISSUER_URI:}
