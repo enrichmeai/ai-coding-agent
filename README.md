@@ -1,6 +1,9 @@
-# AI Coding Agent (Spring Boot)
+# Penstock
 
-**Copilot beyond the IDE.** A self-hosted, centrally-governed coding agent that runs
+*Formerly "AI Coding Agent".* A penstock carries water under pressure to the
+turbine — it delivers work to where the work gets done.
+
+**Your models, beyond the IDE.** A self-hosted, centrally-governed agent that runs
 GitHub Copilot (or Claude / OpenAI / Ollama) against the workflows your IDE can't
 reach — CI hooks, Slack commands, scheduled triage jobs, and custom tools that talk
 to your internal systems (Jira, runbooks, observability). Built in **Spring Boot 3 +
@@ -125,7 +128,7 @@ Open **http://localhost:8080** and start chatting.
 
 ### From the published image (no checkout needed)
 
-Every [release](https://github.com/enrichmeai/ai-coding-agent/releases) publishes a
+Every [release](https://github.com/enrichmeai/penstock/releases) publishes a
 multi-arch (amd64 + arm64) image to GHCR, smoke-tested and shipped with an SBOM
 and a vulnerability report:
 
@@ -133,7 +136,7 @@ and a vulnerability report:
 docker run -p 8080:8080 \
   -e GITHUB_COPILOT_TOKEN=... \
   -v /abs/path/to/project:/workspace \
-  ghcr.io/enrichmeai/ai-coding-agent:latest
+  ghcr.io/enrichmeai/penstock:latest
 ```
 
 Swap the token for `AGENT_LLM_PROVIDER=anthropic` + `ANTHROPIC_API_KEY=...` (or
@@ -365,7 +368,7 @@ If the audit trail is a reason you are running this, turn auth on before anythin
 export AGENT_AUTH_ENABLED=true
 export AGENT_AUTH_MODE=oidc                       # or `basic` for a quick local run
 export AGENT_OIDC_ISSUER_URI=https://your-idp.example/
-export AGENT_OIDC_AUDIENCE=ai-coding-agent
+export AGENT_OIDC_AUDIENCE=penstock
 ```
 
 The principal then comes from the token (`AGENT_OIDC_PRINCIPAL_CLAIM`, default `sub`) and

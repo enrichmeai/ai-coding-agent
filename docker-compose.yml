@@ -2,7 +2,7 @@ services:
   # ---- Local LLM: runs entirely on your machine, no internet after the first pull ----
   ollama:
     image: ollama/ollama:latest
-    container_name: ai-coding-agent-ollama
+    container_name: penstock-ollama
     # Deliberately NOT published to the host: the agent reaches it over the compose
     # network at http://ollama:11434. Publishing 11434 would collide with (or silently
     # shadow) an Ollama already running on the host.
@@ -23,7 +23,7 @@ services:
   # This is the ONLY step that needs internet. Once it has run, the stack is fully offline.
   ollama-pull:
     image: ollama/ollama:latest
-    container_name: ai-coding-agent-ollama-pull
+    container_name: penstock-ollama-pull
     depends_on:
       ollama:
         condition: service_healthy
@@ -37,8 +37,8 @@ services:
 
   agent:
     build: .
-    image: ai-coding-agent:latest
-    container_name: ai-coding-agent
+    image: penstock:latest
+    container_name: penstock
     depends_on:
       ollama:
         condition: service_healthy

@@ -51,7 +51,7 @@ RUN apt-get update \
 RUN useradd -ms /bin/bash agent
 WORKDIR /app
 
-COPY --from=build /workspace/build/libs/ai-coding-agent-*.jar /app/agent.jar
+COPY --from=build /workspace/build/libs/penstock-*.jar /app/agent.jar
 
 # The seed is copied into GRADLE_USER_HOME on first start (see entrypoint).
 # It cannot be used in place: Gradle writes locks and caches into its home, and
@@ -86,6 +86,6 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s \
 #              --cap-drop=ALL --pids-limit=256 --memory=1g \
 #              -v agent-data:/data -v agent-gradle:/home/agent/.gradle \
 #              -v /path/to/workspace:/workspace \
-#              -p 8080:8080 ai-coding-agent:latest
+#              -p 8080:8080 penstock:latest
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

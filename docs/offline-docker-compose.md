@@ -106,7 +106,7 @@ Two things to keep in mind:
 - **KV cache is allocated up front and scales with `num_ctx`.** A bigger model
   plus a big window can exhaust the VM: `llama3.1:8b` (4.9 GB resident) at 32768
   is far closer to the edge than `llama3.2:3b` at 16384. If the ollama container
-  starts dying, check `docker inspect ai-coding-agent-ollama --format '{{.State.OOMKilled}}'`
+  starts dying, check `docker inspect penstock-ollama --format '{{.State.OOMKilled}}'`
   before suspecting anything else.
 - **`num-ctx: 0` omits the option**, letting a server-side `OLLAMA_CONTEXT_LENGTH`
   win instead. Use that if you manage the Ollama server's configuration yourself.
@@ -168,7 +168,7 @@ docker run -d --name probe --network none --read-only \
   --tmpfs /tmp:exec --tmpfs /home/agent/.cache \
   -v toolchain-gradle:/home/agent/.gradle -v toolchain-data:/data \
   -v /path/to/a/fresh/clone:/workspace \
-  -e AGENT_STORAGE_TYPE=sqlite ai-coding-agent:latest
+  -e AGENT_STORAGE_TYPE=sqlite penstock:latest
 docker exec probe bash -lc 'cd /workspace && rm -rf build .gradle && ./gradlew test'
 # BUILD SUCCESSFUL in 47s — 4 actionable tasks: 4 executed
 ```
