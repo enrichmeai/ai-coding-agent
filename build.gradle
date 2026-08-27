@@ -1,12 +1,17 @@
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '3.3.4'
+    id 'org.springframework.boot' version '3.5.3'
     id 'io.spring.dependency-management' version '1.1.6'
 }
 
 group = 'com.example'
 // The release workflow overrides this from the git tag: -PreleaseVersion=1.2.3
-version = findProperty('releaseVersion') ?: '0.1.0'
+version = findProperty('releaseVersion') ?: '0.1.1'
+
+// Targeted override on top of the Boot 3.5.3 BOM: its managed Tomcat (10.1.42)
+// carries CVE-2026-41293 (critical), fixed in 10.1.55. Remove when a Boot BOM
+// managing >= 10.1.55 is adopted.
+ext['tomcat.version'] = '10.1.55'
 
 java {
     toolchain {
@@ -30,13 +35,14 @@ dependencies {
 
     // SQLite driver + Hibernate community dialect (dev/local default)
     runtimeOnly   'org.xerial:sqlite-jdbc:3.46.1.0'
-    implementation 'org.hibernate.orm:hibernate-community-dialects:6.5.2.Final'
+    implementation 'org.hibernate.orm:hibernate-community-dialects:6.6.18.Final'
 
-    // Postgres driver (production)
-    runtimeOnly   'org.postgresql:postgresql:42.7.4'
+    // Postgres driver (production) — version managed by the Boot BOM so CVE
+    // patches arrive with framework bumps instead of a stale pin.
+    runtimeOnly   'org.postgresql:postgresql'
 
     // OpenAPI / Swagger UI at /swagger-ui.html
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0'
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.6'
 
     // Phase 1 safety: rate limiting + bucket cache + migrations
     implementation 'com.bucket4j:bucket4j-core:8.10.1'

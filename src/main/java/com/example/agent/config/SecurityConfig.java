@@ -122,8 +122,7 @@ public class SecurityConfig {
     @Bean
     @ConditionalOnProperty(prefix = "agent.auth", name = "mode", havingValue = "basic", matchIfMissing = true)
     public AuthenticationManager authManager(UserDetailsService users, PasswordEncoder encoder) {
-        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
-        provider.setUserDetailsService(users);
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider(users);
         provider.setPasswordEncoder(encoder);
         return new ProviderManager(provider);
     }

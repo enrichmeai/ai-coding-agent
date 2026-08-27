@@ -11,7 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -186,7 +186,7 @@ class SecurityConfigTest {
     @org.springframework.context.annotation.Import(StubCfg.class)
     @Nested class OidcAuthMode {
         @Autowired MockMvc mvc;
-        @MockBean JwtDecoder jwtDecoder;
+        @MockitoBean JwtDecoder jwtDecoder;
 
         @Test
         void unauthenticatedReturns401() throws Exception {
