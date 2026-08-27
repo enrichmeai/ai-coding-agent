@@ -45,7 +45,11 @@ management:
         liveness:
           include: livenessState
         readiness:
-          include: readinessState,db,llmProvider
+          # No db here: in memory mode (the default) there is no DataSource, and
+          # a group member that doesn't exist aborts startup. The storage-sqlite
+          # and storage-postgres profile documents below add db back — exactly
+          # the modes where a DataSource is guaranteed.
+          include: readinessState,llmProvider
   metrics:
     tags:
       application: ${spring.application.name}
@@ -213,6 +217,13 @@ spring:
     group: false
     out-of-order: false
 
+management:
+  endpoint:
+    health:
+      group:
+        readiness:
+          include: readinessState,db,llmProvider
+
 ---
 spring:
   config:
@@ -241,3 +252,10 @@ spring:
     # Postgres supports transactional DDL.
     group: true
     out-of-order: false
+
+management:
+  endpoint:
+    health:
+      group:
+        readiness:
+          include: readinessState,db,llmProvider
