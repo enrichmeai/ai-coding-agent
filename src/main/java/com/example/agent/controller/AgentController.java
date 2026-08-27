@@ -15,6 +15,7 @@ import com.example.agent.tools.ToolSpec;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.http.MediaType;
@@ -117,7 +118,12 @@ public class AgentController {
         }
 
         final Session captured = session;
+        // The task runs on a pooled thread with no request context: carry the
+        // MDC (requestId/userId/sessionId) over so the stream's logs stay
+        // attributable. Identity for persistence/audit travels via the Session.
+        final Map<String, String> mdc = MDC.getCopyOfContextMap();
         streamExecutor.execute(() -> {
+            if (mdc != null) MDC.setContextMap(mdc);
             metrics.sseStreamStarted();
             try {
                 emitter.send(SseEmitter.event().name("session").data(sessionPayload(captured)));
@@ -150,6 +156,7 @@ public class AgentController {
                 emitter.completeWithError(e);
             } finally {
                 metrics.sseStreamFinished();
+                MDC.clear();   // pooled thread — don't leak this stream's context
             }
         });
 

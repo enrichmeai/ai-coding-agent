@@ -114,7 +114,12 @@ public class JpaSessionStore implements SessionStore {
     @Override
     @Transactional
     public void update(Session session) {
-        sessionRepo.findByIdAndUserId(session.getId(), me()).ifPresent(e -> {
+        // Scope by the session's own userId, not me(): update is called from
+        // the agent loop, which on the SSE path runs on a pooled thread where
+        // the SecurityContext is absent (me() would be "anonymous" and the
+        // owner-filtered query would silently drop the update). Ownership was
+        // already enforced when the session was loaded on the request thread.
+        sessionRepo.findByIdAndUserId(session.getId(), session.getUserId()).ifPresent(e -> {
             e.setTitle(session.getTitle());
             sessionRepo.save(e);
         });

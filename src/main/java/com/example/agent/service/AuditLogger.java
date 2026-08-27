@@ -21,6 +21,9 @@ import java.util.Map;
  *   all methods silently no-op with a debug log.
  * - All writes are async (@Async) so they never block the request.
  * - Catches and logs exceptions to ensure audit failures never break the agent.
+ * - The acting user is an explicit parameter: @Async methods run on a pooled
+ *   thread with no SecurityContext, so the principal must be resolved on the
+ *   request thread and passed in — never read from thread-local state here.
  */
 @Component
 public class AuditLogger {
@@ -29,21 +32,19 @@ public class AuditLogger {
 
     private final AuditEventRepository repo;
     private final ObjectMapper mapper;
-    private final CurrentUser currentUser;
 
     @Autowired
     public AuditLogger(
             @Autowired(required = false) AuditEventRepository repo,
-            ObjectMapper mapper,
-            CurrentUser currentUser) {
+            ObjectMapper mapper) {
         this.repo = repo;
         this.mapper = mapper;
-        this.currentUser = currentUser;
     }
 
     /**
      * Log a tool call event.
      *
+     * @param userId acting user, resolved on the request thread (null/blank → "anonymous")
      * @param sessionId ID of the session (may be null)
      * @param toolName name of the tool invoked
      * @param args tool arguments
@@ -51,7 +52,7 @@ public class AuditLogger {
      * @param contentBytes size of the tool output
      */
     @Async
-    public void toolCall(String sessionId, String toolName, Map<String, Object> args, boolean ok, int contentBytes) {
+    public void toolCall(String userId, String sessionId, String toolName, Map<String, Object> args, boolean ok, int contentBytes) {
         if (repo == null) {
             log.debug("Audit repository not available; skipping tool_call event");
             return;
@@ -67,7 +68,7 @@ public class AuditLogger {
             String detailJson = mapper.writeValueAsString(detail);
             AuditEventEntity event = new AuditEventEntity(
                     Instant.now(),
-                    currentUser.name(),
+                    normalise(userId),
                     sessionId,
                     "tool_call",
                     detailJson
@@ -81,6 +82,7 @@ public class AuditLogger {
     /**
      * Log an LLM call event.
      *
+     * @param userId acting user, resolved on the request thread (null/blank → "anonymous")
      * @param sessionId ID of the session (may be null)
      * @param provider name of the LLM provider
      * @param inputTokens number of input tokens
@@ -88,7 +90,7 @@ public class AuditLogger {
      * @param ok true if the LLM call succeeded
      */
     @Async
-    public void llmCall(String sessionId, String provider, int inputTokens, int outputTokens, boolean ok) {
+    public void llmCall(String userId, String sessionId, String provider, int inputTokens, int outputTokens, boolean ok) {
         if (repo == null) {
             log.debug("Audit repository not available; skipping llm_call event");
             return;
@@ -104,7 +106,7 @@ public class AuditLogger {
             String detailJson = mapper.writeValueAsString(detail);
             AuditEventEntity event = new AuditEventEntity(
                     Instant.now(),
-                    currentUser.name(),
+                    normalise(userId),
                     sessionId,
                     "llm_call",
                     detailJson
@@ -113,5 +115,9 @@ public class AuditLogger {
         } catch (Exception e) {
             log.warn("Failed to log llm_call event", e);
         }
+    }
+
+    private static String normalise(String userId) {
+        return (userId == null || userId.isBlank()) ? CurrentUser.ANONYMOUS : userId;
     }
 }

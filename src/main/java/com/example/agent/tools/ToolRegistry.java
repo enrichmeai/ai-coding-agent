@@ -55,14 +55,24 @@ public class ToolRegistry {
      * Convenience overload for callers (mostly tests) that don't have a session id.
      */
     public ToolResult invoke(ToolCall call) {
-        return invoke(call, null);
+        return invoke(call, null, null);
     }
 
     /**
-     * Invoke a tool on behalf of a session. {@code sessionId} is used purely
-     * for audit logging and may be {@code null}.
+     * Convenience overload for callers that don't know the acting user; audit
+     * events are attributed to "anonymous".
      */
     public ToolResult invoke(ToolCall call, String sessionId) {
+        return invoke(call, sessionId, null);
+    }
+
+    /**
+     * Invoke a tool on behalf of a session. {@code sessionId} and {@code userId}
+     * are used purely for audit logging and may be {@code null}. The user must be
+     * resolved by the caller — audit writes are async and cannot read the
+     * SecurityContext of the invoking thread.
+     */
+    public ToolResult invoke(ToolCall call, String sessionId, String userId) {
         Tool t = tools.get(call.name());
         if (t == null) {
             return ToolResult.error(call.id(), "Unknown tool: " + call.name());
@@ -81,7 +91,7 @@ public class ToolRegistry {
             // Audit the tool call
             if (auditLogger != null) {
                 int contentBytes = r.content() == null ? 0 : r.content().getBytes(StandardCharsets.UTF_8).length;
-                auditLogger.toolCall(sessionId, call.name(), call.arguments() == null ? Map.of() : call.arguments(), !r.isError(), contentBytes);
+                auditLogger.toolCall(userId, sessionId, call.name(), call.arguments() == null ? Map.of() : call.arguments(), !r.isError(), contentBytes);
             }
 
             // Check if output needs truncation
@@ -105,7 +115,7 @@ public class ToolRegistry {
 
             // Audit the failed tool call
             if (auditLogger != null) {
-                auditLogger.toolCall(sessionId, call.name(), call.arguments() == null ? Map.of() : call.arguments(), false, 0);
+                auditLogger.toolCall(userId, sessionId, call.name(), call.arguments() == null ? Map.of() : call.arguments(), false, 0);
             }
 
             return ToolResult.error(call.id(), "Tool threw: " + e.getMessage());

@@ -9,11 +9,9 @@ import com.example.agent.model.Role;
 import com.example.agent.model.TokenUsage;
 import com.example.agent.model.ToolCall;
 import com.example.agent.model.ToolResult;
-import com.example.agent.service.AuditLogger;
 import com.example.agent.tools.ToolSpec;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -43,7 +41,6 @@ public class AnthropicProvider implements LlmProvider {
     private final WebClient webClient;
     private final ObjectMapper mapper;
     private final AgentMetrics metrics;
-    private AuditLogger auditLogger;
 
     public AnthropicProvider(AgentProperties props,
                              WebClient.Builder webClientBuilder,
@@ -58,11 +55,6 @@ public class AnthropicProvider implements LlmProvider {
                 .defaultHeader("anthropic-version", API_VERSION)
                 .defaultHeader("content-type", MediaType.APPLICATION_JSON_VALUE)
                 .build();
-    }
-
-    @Autowired(required = false)
-    public void setAuditLogger(AuditLogger auditLogger) {
-        this.auditLogger = auditLogger;
     }
 
     @Override public String name() { return "anthropic"; }
@@ -96,17 +88,11 @@ public class AnthropicProvider implements LlmProvider {
                     .block());
         } catch (Exception e) {
             metrics.recordLlmCall(name(), false, 0, 0);
-            if (auditLogger != null) {
-                auditLogger.llmCall(sessionId, name(), 0, 0, false);
-            }
             throw e;
         }
 
         CompletionResult result = parseResponse(response);
         metrics.recordLlmCall(name(), true, result.usage().inputTokens(), result.usage().outputTokens());
-        if (auditLogger != null) {
-            auditLogger.llmCall(sessionId, name(), result.usage().inputTokens(), result.usage().outputTokens(), true);
-        }
         return result;
     }
 
@@ -146,17 +132,11 @@ public class AnthropicProvider implements LlmProvider {
                     .blockLast();
         } catch (Exception e) {
             metrics.recordLlmCall(name(), false, 0, 0);
-            if (auditLogger != null) {
-                auditLogger.llmCall(sessionId, name(), 0, 0, false);
-            }
             throw e;
         }
 
         CompletionResult result = state.toResult();
         metrics.recordLlmCall(name(), true, result.usage().inputTokens(), result.usage().outputTokens());
-        if (auditLogger != null) {
-            auditLogger.llmCall(sessionId, name(), result.usage().inputTokens(), result.usage().outputTokens(), true);
-        }
         return result;
     }
 
