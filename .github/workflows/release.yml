@@ -69,9 +69,13 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Smoke test — image must boot in default (memory) mode
+      - name: Smoke test — image must boot exactly as shipped
         run: |
-          docker run -d --name smoke -p 18080:8080 -e AGENT_STORAGE_TYPE=memory "${IMAGE}:smoke"
+          # No env overrides: neither the Dockerfile nor the entrypoint sets
+          # AGENT_STORAGE_TYPE, so this exercises the true as-shipped default
+          # (memory mode — the issue #12 startup path) the way a bare
+          # `docker run` from the README does.
+          docker run -d --name smoke -p 18080:8080 "${IMAGE}:smoke"
           ok=""
           for i in $(seq 1 30); do
             if curl -fsS http://localhost:18080/api/health > /dev/null; then ok=1; break; fi
