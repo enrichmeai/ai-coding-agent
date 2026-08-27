@@ -123,12 +123,35 @@ Open **http://localhost:8080** and start chatting.
 
 ## Running with Docker
 
+### From the published image (no checkout needed)
+
+Every [release](https://github.com/enrichmeai/ai-coding-agent/releases) publishes a
+multi-arch (amd64 + arm64) image to GHCR, smoke-tested and shipped with an SBOM
+and a vulnerability report:
+
+```bash
+docker run -p 8080:8080 \
+  -e GITHUB_COPILOT_TOKEN=... \
+  -v /abs/path/to/project:/workspace \
+  ghcr.io/enrichmeai/ai-coding-agent:latest
+```
+
+Swap the token for `AGENT_LLM_PROVIDER=anthropic` + `ANTHROPIC_API_KEY=...` (or
+`openai` / `ollama`) as needed. Add `-e AGENT_AUTH_ENABLED=true` to require
+login — with no `AGENT_AUTH_PASSWORD` set, a random password is generated and
+printed in the container log.
+
+### From a checkout (compose, fully offline)
+
 ```bash
 export AGENT_WORKSPACE_HOST=/abs/path/to/project    # bind-mounted into /workspace
 
 docker compose up -d --build
 ./scripts/demo-offline.sh                           # proves the whole loop works
 ```
+
+Building the image requires BuildKit (the default since Docker 23). On older
+engines, prefix builds with `DOCKER_BUILDKIT=1`.
 
 Out of the box this needs **no API key and no internet** beyond a one-time model
 download: compose also starts an Ollama container and pulls `llama3.2:3b` into a
