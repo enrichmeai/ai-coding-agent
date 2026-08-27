@@ -124,15 +124,24 @@ Open **http://localhost:8080** and start chatting.
 ## Running with Docker
 
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...
 export AGENT_WORKSPACE_HOST=/abs/path/to/project    # bind-mounted into /workspace
 
-docker compose up --build
+docker compose up -d --build
+./scripts/demo-offline.sh                           # proves the whole loop works
 ```
+
+Out of the box this needs **no API key and no internet** beyond a one-time model
+download: compose also starts an Ollama container and pulls `llama3.2:3b` into a
+volume. Open **http://localhost:8090**. Full walkthrough, model-choice guidance
+and a faster GPU variant: [docs/offline-docker-compose.md](docs/offline-docker-compose.md).
+
+To use a hosted provider instead, set `AGENT_LLM_PROVIDER` and the matching key
+(e.g. `AGENT_LLM_PROVIDER=anthropic ANTHROPIC_API_KEY=sk-ant-...`).
 
 The compose file:
 - Builds the jar in a Gradle/JDK 21 stage, runs it on a slim Temurin JRE image.
-- Persists the SQLite DB to `./data` on the host (`/data/agent.db` inside).
+- Runs `ollama` + a one-shot `ollama-pull`, reachable at `http://ollama:11434`.
+- Keeps the SQLite DB on the `agent-data` volume (not a bind mount — see the doc).
 - Bind-mounts your chosen workspace into `/workspace`.
 - Adds `host.docker.internal` so the container can reach a host-native Ollama.
 - Exposes a `HEALTHCHECK` that curls `/api/health`.

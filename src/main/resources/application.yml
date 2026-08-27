@@ -123,7 +123,17 @@ agent:
 
     ollama:
       base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
-      model: ${OLLAMA_MODEL:qwen2.5-coder:7b}
+      # Must be a model whose Ollama template emits structured `tool_calls`.
+      # The qwen2.5-coder family advertises `tools` but returns the call as fenced
+      # JSON in `content`, which the tool-use loop cannot see. Verified working:
+      # llama3.2:3b (2GB), qwen3-coder:30b (18GB).
+      model: ${OLLAMA_MODEL:llama3.2:3b}
+      # Sent as options.num_ctx. Without it Ollama falls back to its own default
+      # (measured: 2050 in the bundled container, 4096 on host 0.12.11) and silently
+      # discards the overflow — the system prompt and tool schemas go first. A bare
+      # first turn already measures ~1.6k tokens and one tool result can add ~4k.
+      # 0 omits the option entirely so a server-side OLLAMA_CONTEXT_LENGTH can win.
+      num-ctx: ${OLLAMA_NUM_CTX:16384}
 
     copilot:
       api-key: ${GITHUB_COPILOT_TOKEN:${GITHUB_TOKEN:}}
@@ -135,7 +145,10 @@ agent:
     max-output-bytes: 16384
     shell:
       enabled: ${AGENT_TOOLS_SHELL_ENABLED:true}
-      timeout-seconds: 60
+      # A first build in a fresh workspace (compile + tests) takes minutes, and a
+      # command that keeps printing holds the turn until it finishes, so 60s made
+      # './gradlew test' impossible. The model can still pass timeout_seconds.
+      timeout-seconds: ${AGENT_TOOLS_SHELL_TIMEOUT_SECONDS:600}
       blocked-patterns:
         - "^\\s*rm\\s+-rf\\s+/"
         - "^\\s*:\\(\\)\\{"
@@ -180,8 +193,15 @@ spring:
     activate:
       on-profile: storage-sqlite
   datasource:
-    url: jdbc:sqlite:${agent.storage.sqlite-path}
+    url: jdbc:sqlite:${agent.storage.sqlite-path}?journal_mode=WAL&busy_timeout=10000
     driver-class-name: org.sqlite.JDBC
+    hikari:
+      # SQLite permits exactly one writer. The agent loop persists messages on the
+      # request thread while AuditLogger writes audit_events from another, so a
+      # multi-connection pool deadlocks the two against each other and the second
+      # writer dies with SQLITE_BUSY mid-conversation. One connection serialises
+      # them; WAL + busy_timeout above cover any remaining contention.
+      maximum-pool-size: 1
   jpa:
     properties:
       hibernate:

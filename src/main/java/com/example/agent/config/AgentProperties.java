@@ -201,12 +201,25 @@ public class AgentProperties {
 
     public static class Ollama {
         private String baseUrl = "http://localhost:11434";
-        private String model = "qwen2.5-coder:7b";
+        /**
+         * Must be a model that emits Ollama's structured tool_calls; the qwen2.5-coder
+         * family never does, which leaves the agent loop silently doing nothing.
+         */
+        private String model = "llama3.2:3b";
+        /**
+         * Context window sent as options.num_ctx. Ollama otherwise applies its own
+         * default (measured: 2050 in the bundled container, 4096 on host 0.12.11) and
+         * silently drops whatever does not fit — the system prompt and tool schemas
+         * go first. 0 omits the option so a server-side setting wins.
+         */
+        private int numCtx = 16_384;
 
         public String getBaseUrl() { return baseUrl; }
         public void setBaseUrl(String baseUrl) { this.baseUrl = baseUrl; }
         public String getModel() { return model; }
         public void setModel(String model) { this.model = model; }
+        public int getNumCtx() { return numCtx; }
+        public void setNumCtx(int numCtx) { this.numCtx = numCtx; }
     }
 
     public static class Tools {

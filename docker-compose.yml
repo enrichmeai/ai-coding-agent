@@ -1,16 +1,58 @@
 services:
+  # ---- Local LLM: runs entirely on your machine, no internet after the first pull ----
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ai-coding-agent-ollama
+    # Deliberately NOT published to the host: the agent reaches it over the compose
+    # network at http://ollama:11434. Publishing 11434 would collide with (or silently
+    # shadow) an Ollama already running on the host.
+    expose:
+      - "11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list > /dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+    restart: unless-stopped
+    mem_limit: 6g
+
+  # ---- One-shot: pull the model into the volume, then exit. Idempotent. ----
+  # This is the ONLY step that needs internet. Once it has run, the stack is fully offline.
+  ollama-pull:
+    image: ollama/ollama:latest
+    container_name: ai-coding-agent-ollama-pull
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:3b}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - 'ollama list | grep -q "^${OLLAMA_MODEL:-llama3.2:3b}" && echo "model already present, skipping pull" || ollama pull "${OLLAMA_MODEL:-llama3.2:3b}"'
+    restart: "no"
+
   agent:
     build: .
     image: ai-coding-agent:latest
     container_name: ai-coding-agent
+    depends_on:
+      ollama:
+        condition: service_healthy
+      ollama-pull:
+        condition: service_completed_successfully
     ports:
-      - "8080:8080"
+      - "${AGENT_PORT:-8090}:8080"
     environment:
-      # ---- LLM provider ----
-      AGENT_LLM_PROVIDER: ${AGENT_LLM_PROVIDER:-anthropic}
+      # ---- LLM provider (defaults to the local Ollama container above) ----
+      AGENT_LLM_PROVIDER: ${AGENT_LLM_PROVIDER:-ollama}
+      OLLAMA_BASE_URL:   ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_MODEL:      ${OLLAMA_MODEL:-llama3.2:3b}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY:    ${OPENAI_API_KEY:-}
-      OLLAMA_BASE_URL:   ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
 
       # ---- Storage ----
       AGENT_STORAGE_TYPE: sqlite
@@ -23,18 +65,34 @@ services:
 
       JAVA_OPTS: "-Xmx512m"
     volumes:
-      - ./data:/data                                # persistent SQLite db
-      - ${AGENT_WORKSPACE_HOST:-./agent-workspace}:/workspace   # mount the folder the agent edits
+      # SQLite lives on a named volume, NOT a host bind mount. On Docker Desktop
+      # the bind mount is proxied through gRPC-FUSE, where SQLite's file locking
+      # is unreliable and writes fail with SQLITE_BUSY mid-conversation.
+      # Extract it with: docker compose cp agent:/data/agent.db ./agent.db
+      - agent-data:/data
+      # Gradle home. Seeded from the image on first start (see
+      # docker-entrypoint.sh) so the agent can build and test what it edits with
+      # no network. A volume, not a tmpfs: re-copying the seed on every restart
+      # is slow, and the container filesystem is read-only.
+      - agent-gradle:/home/agent/.gradle
+      - ${AGENT_WORKSPACE_HOST:-./agent-workspace}:/workspace   # the folder the agent edits
     restart: unless-stopped
     extra_hosts:
-      - "host.docker.internal:host-gateway"         # for talking to Ollama on the host
+      - "host.docker.internal:host-gateway"         # for talking to an Ollama on the host instead
     read_only: true
     tmpfs:
-      - /tmp
+      # /tmp must be exec: sqlite-jdbc unpacks a native .so here and dlopen()s it.
+      # A default (noexec) tmpfs makes Flyway fail with UnsatisfiedLinkError.
+      - /tmp:exec
       - /home/agent/.cache
     cap_drop:
       - ALL
     security_opt:
       - no-new-privileges:true
     pids_limit: 256
-    mem_limit: 1g
+    mem_limit: 2g          # a Gradle build in /workspace needs more than the agent itself
+
+volumes:
+  ollama-models:
+  agent-data:
+  agent-gradle:

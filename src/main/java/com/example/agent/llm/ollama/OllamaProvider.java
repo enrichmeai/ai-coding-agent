@@ -12,6 +12,8 @@ import com.example.agent.model.ToolResult;
 import com.example.agent.tools.ToolSpec;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -35,10 +37,20 @@ import java.util.UUID;
 @ConditionalOnProperty(name = "agent.llm.provider", havingValue = "ollama")
 public class OllamaProvider implements LlmProvider {
 
+    private static final Logger log = LoggerFactory.getLogger(OllamaProvider.class);
+
     private final AgentProperties.Ollama cfg;
     private final WebClient webClient;
     private final ObjectMapper mapper;
     private final AgentMetrics metrics;
+    private final TextToolCallParser textToolCallParser;
+    /** Sessions already warned about context pressure; bounded so it cannot grow forever. */
+    private final Map<String, Boolean> contextWarned = java.util.Collections.synchronizedMap(
+            new java.util.LinkedHashMap<>(16, 0.75f, true) {
+                @Override protected boolean removeEldestEntry(Map.Entry<String, Boolean> eldest) {
+                    return size() > 1024;
+                }
+            });
 
     public OllamaProvider(AgentProperties props,
                           WebClient.Builder webClientBuilder,
@@ -47,6 +59,7 @@ public class OllamaProvider implements LlmProvider {
         this.cfg = props.getLlm().getOllama();
         this.mapper = mapper;
         this.metrics = metrics;
+        this.textToolCallParser = new TextToolCallParser(mapper);
         this.webClient = webClientBuilder
                 .baseUrl(cfg.getBaseUrl())
                 .defaultHeader("content-type", MediaType.APPLICATION_JSON_VALUE)
@@ -54,6 +67,26 @@ public class OllamaProvider implements LlmProvider {
     }
 
     @Override public String name() { return "ollama"; }
+
+    /**
+     * Ollama reports what it actually evaluated, so a prompt that got truncated comes
+     * back with prompt_eval_count pinned at num_ctx. Warning at 80% catches both the
+     * truncation itself and the approach to it, which is otherwise entirely silent.
+     * Once per session — the loop calls this on every iteration of a turn.
+     */
+    private void warnIfNearContextLimit(int promptTokens, String sessionId) {
+        int numCtx = cfg.getNumCtx();
+        if (numCtx <= 0 || promptTokens < (numCtx * 4) / 5) {
+            return;
+        }
+        String key = sessionId == null ? "-" : sessionId;
+        if (contextWarned.putIfAbsent(key, Boolean.TRUE) == null) {
+            log.warn("Prompt used {} of {} num_ctx tokens for model {}. Ollama silently "
+                            + "discards anything beyond num_ctx, starting with the system prompt "
+                            + "and tool schemas. Raise agent.llm.ollama.num-ctx (OLLAMA_NUM_CTX).",
+                    promptTokens, numCtx, cfg.getModel());
+        }
+    }
 
     @Override
     public CompletionResult complete(String systemPrompt, List<ChatMessage> history, List<ToolSpec> tools, String sessionId) {
@@ -63,6 +96,13 @@ public class OllamaProvider implements LlmProvider {
         body.put("messages", convertHistory(systemPrompt, history));
         if (tools != null && !tools.isEmpty()) {
             body.put("tools", convertTools(tools));
+        }
+        // Without num_ctx Ollama applies its own default (measured: 2050 in the
+        // bundled container, 4096 on host 0.12.11) and silently drops the overflow,
+        // taking the system prompt and tool schemas with it. 0 means "leave it to
+        // the server", so a deployment can set OLLAMA_CONTEXT_LENGTH instead.
+        if (cfg.getNumCtx() > 0) {
+            body.put("options", Map.of("num_ctx", cfg.getNumCtx()));
         }
 
         JsonNode response;
@@ -80,6 +120,7 @@ public class OllamaProvider implements LlmProvider {
         }
 
         CompletionResult result = parseResponse(response);
+        warnIfNearContextLimit(result.usage().inputTokens(), sessionId);
         metrics.recordLlmCall(name(), true, result.usage().inputTokens(), result.usage().outputTokens());
         return result;
     }
@@ -168,6 +209,16 @@ public class OllamaProvider implements LlmProvider {
                 toolCalls.add(new ToolCall("call_" + UUID.randomUUID(), name, args));
             }
         }
+        // Local models often ignore the structured tool_calls field and emit the
+        // call as prose instead; recover those so the loop can still act on them.
+        if (toolCalls.isEmpty()) {
+            TextToolCallParser.Result recovered = textToolCallParser.parse(text);
+            if (!recovered.toolCalls().isEmpty()) {
+                text = recovered.text();
+                toolCalls = recovered.toolCalls();
+            }
+        }
+
         // Ollama uses prompt_eval_count / eval_count at the top level.
         TokenUsage tokens = new TokenUsage(
                 response.path("prompt_eval_count").asInt(0),

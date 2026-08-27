@@ -11,7 +11,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.ArrayDeque;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 
 @Component
@@ -26,6 +28,10 @@ public class ShellTool implements Tool {
         this.cfg = props.getTools().getShell();
         this.blockedPatterns = cfg.getBlockedPatterns().stream().map(Pattern::compile).toList();
     }
+
+    /** Head kept verbatim; the rest of a long run is represented by its tail. */
+    private static final int HEAD_LIMIT_CHARS = 30_000;
+    private static final int TAIL_LIMIT_CHARS = 30_000;
 
     @Override public String name() { return "shell"; }
 
@@ -52,7 +58,9 @@ public class ShellTool implements Tool {
     @Override public String description() {
         String desc = "Run a shell command in the workspace directory. Returns combined stdout/stderr. " +
                 "Default timeout: " + cfg.getTimeoutSeconds() + "s. " +
-                "Use this to build, test, lint, or inspect the repo (e.g. 'ls', 'git status', './gradlew test').";
+                "Use this to build, test, lint, or inspect the repo (e.g. 'ls', 'git status', " +
+                "'gradle test' — the container ships Gradle on PATH; './gradlew test' works " +
+                "only where the wrapper jar has been bootstrapped).";
         if (!cfg.getAllowedCommands().isEmpty()) {
             desc += " [allow-list enforced]";
         }
@@ -101,18 +109,63 @@ public class ShellTool implements Tool {
 
         try {
             Process process = pb.start();
-            StringBuilder output = new StringBuilder();
+
+            // The timeout has to be enforced by a watchdog rather than by waiting
+            // after the read. Draining stdout blocks until the stream closes, which
+            // for a command that keeps printing — a Gradle build, say — is when it
+            // finishes. Checking the clock only afterwards would let a long build
+            // hold the turn for its full duration and then report success.
+            AtomicBoolean timedOut = new AtomicBoolean(false);
+            Thread watchdog = new Thread(() -> {
+                try {
+                    if (!process.waitFor(timeoutSec, TimeUnit.SECONDS)) {
+                        timedOut.set(true);
+                        process.destroyForcibly();
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }, "shell-timeout-" + callId);
+            watchdog.setDaemon(true);
+            watchdog.start();
+
+            // Keep the head AND the tail. A build prints its dependency noise first
+            // and the reason it failed last, so discarding everything after a
+            // head-only cap threw away the only part worth reading.
+            StringBuilder head = new StringBuilder();
+            ArrayDeque<String> tail = new ArrayDeque<>();
+            int tailChars = 0;
+            boolean dropped = false;
             try (BufferedReader r = new BufferedReader(
                     new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
                 String line;
                 while ((line = r.readLine()) != null) {
-                    if (output.length() < 60_000) output.append(line).append('\n');
+                    if (head.length() < HEAD_LIMIT_CHARS) {
+                        head.append(line).append('\n');
+                        continue;
+                    }
+                    tail.addLast(line);
+                    tailChars += line.length() + 1;
+                    while (tailChars > TAIL_LIMIT_CHARS && tail.size() > 1) {
+                        tailChars -= tail.removeFirst().length() + 1;
+                        dropped = true;
+                    }
                 }
             }
-            boolean done = process.waitFor(timeoutSec, TimeUnit.SECONDS);
-            if (!done) {
-                process.destroyForcibly();
-                return ToolResult.error(callId, "Command timed out after " + timeoutSec + "s.\n" + output);
+            StringBuilder output = new StringBuilder(head);
+            if (dropped) {
+                output.append("\n... [middle of output dropped] ...\n\n");
+            }
+            for (String line : tail) {
+                output.append(line).append('\n');
+            }
+            process.waitFor();
+            watchdog.interrupt();
+
+            if (timedOut.get()) {
+                return ToolResult.error(callId,
+                        "Command timed out after " + timeoutSec + "s and was killed.\n"
+                        + "Pass a larger timeout_seconds if it legitimately takes longer.\n" + output);
             }
             int exit = process.exitValue();
             String result = "exit=" + exit + "\n" + output;
