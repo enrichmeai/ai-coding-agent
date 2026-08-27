@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document describes the security threat model, in-scope and out-of-scope threats, and hardening guidance for the AI Coding Agent.
+This document describes the security threat model, in-scope and out-of-scope threats, and hardening guidance for Penstock.
 
 ## In-Scope Threats
 
@@ -78,7 +78,7 @@ The following threats are explicitly **out-of-scope** and not defended against i
 
 ## Reporting a Security Vulnerability
 
-If you discover a security vulnerability in the AI Coding Agent, please do **not** open a public issue. Instead, please contact the security team:
+If you discover a security vulnerability in Penstock, please do **not** open a public issue. Instead, please contact the security team:
 
 - **Email:** security@example.com
 - **Private Issue:** Open a confidential security issue in this repository (if supported).

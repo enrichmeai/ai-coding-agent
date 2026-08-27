@@ -1,4 +1,4 @@
-# Team Rollout Playbook — AI Coding Agent
+# Team Rollout Playbook — Penstock
 
 Six-week plan from "built and reviewed on my laptop" to "default tool used by the team." Aimed at engineering leads. Assumes Phase 1 (safety) and Phase 2 (operability) are landed.
 

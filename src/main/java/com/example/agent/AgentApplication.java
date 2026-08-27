@@ -9,7 +9,7 @@ import java.util.Map;
  * Entry point for the AI coding agent.
  *
  * Run: ./gradlew bootRun
- *      (or) java -jar build/libs/ai-coding-agent-0.1.0.jar
+ *      (or) java -jar build/libs/penstock-0.1.0.jar
  *
  * The storage backend is selected before Spring auto-config runs:
  *   - memory  (default / unknown): exclude JPA + DataSource auto-config so

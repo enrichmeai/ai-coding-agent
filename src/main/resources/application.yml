@@ -4,7 +4,7 @@ server:
 
 spring:
   application:
-    name: ai-coding-agent
+    name: penstock
   lifecycle:
     timeout-per-shutdown-phase: 30s
   mvc:

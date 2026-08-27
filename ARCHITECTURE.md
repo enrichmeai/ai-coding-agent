@@ -1,6 +1,6 @@
 # Architecture
 
-How the AI coding agent is wired together, from "user types a message" to "files on disk change." Aimed at engineers joining the project and at anyone designing an extension.
+How Penstock is wired together, from "user types a message" to "files on disk change." Aimed at engineers joining the project and at anyone designing an extension.
 
 ---
 
@@ -13,7 +13,7 @@ How the AI coding agent is wired together, from "user types a message" to "files
                                    │ HTTPS (REST + SSE)
                                    │
       ┌────────────────────────────▼────────────────────────────┐
-      │             AI Coding Agent (Spring Boot JVM)           │
+      │             Penstock (Spring Boot JVM)                │
       │                                                         │
       │   Auth ▶ Rate-limit ▶ Request ID ▶ Controller           │
       │                                         │               │
