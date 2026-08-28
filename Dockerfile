@@ -15,7 +15,7 @@
 #
 # Requires BuildKit ($BUILDPLATFORM is BuildKit-defined) — the default builder
 # since Docker 23. On older engines: DOCKER_BUILDKIT=1 docker build ...
-FROM --platform=$BUILDPLATFORM gradle:8.14.5-jdk21 AS build
+FROM --platform=$BUILDPLATFORM gradle:9.7.1-jdk21 AS build
 WORKDIR /workspace
 
 # Populate a Gradle home we can ship: the wrapper distribution plus every
