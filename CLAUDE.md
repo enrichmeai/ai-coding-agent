@@ -102,3 +102,23 @@ Push a `v*` tag → `.github/workflows/release.yml` builds and tests the jar (ve
 - Instant-backed columns are `INTEGER` in the SQLite migrations (V4) because the dialect writes epoch millis; declaring them `TEXT` makes every read fail with `Unparseable date`. Postgres keeps `TIMESTAMP WITH TIME ZONE`.
 - **This checkout is often shared by multiple Claude sessions.** Before starting: record the current branch and confirm `git status` is clean; before finishing: restore the branch you found (or say you couldn't). Never `git add -A` in a tree you haven't just inspected — a sibling repo lost four merged PRs to exactly that (compiling green, because the reverted files included the tests). A stash labelled with someone else's branch/commit is probably their bookkeeping, not lost work — ask before dropping, inspect before assuming.
 - Ollama: a model must emit Ollama's structured `tool_calls`. Several advertise `tools` and still return the call as prose, so `OllamaProvider` runs `TextToolCallParser` over the text when the structured field is empty (recovers Qwen's `<function=…>` XML and fenced JSON). Verified defaults and the containerised setup: `docs/offline-docker-compose.md`.
+- **Ollama silently truncates the prompt unless `num_ctx` is sent.** `OllamaProvider` sets `options.num_ctx` from `agent.llm.ollama.num-ctx` (default 16384). Without it Ollama applies its own default — measured at **2050 in the bundled container and 4096 on host 0.12.11** — and discards the overflow starting with the system prompt and tool schemas. Nothing errors and nothing is logged; the agent just gets quietly worse. A bare first turn with the nine tool schemas is already ~1.6k tokens and one tool result can add ~4k. `num-ctx: 0` omits the option so a server-side `OLLAMA_CONTEXT_LENGTH` can win instead.
+- **Inside the container the agent runs `gradle test`, not `./gradlew test`.** `gradle-wrapper.jar` is deliberately not in the repo, and the agent cannot run `bootstrap.sh` to fetch one — `curl` and `wget` are on the shell block-list and the offline stack has no network. The image therefore ships Gradle on `PATH` plus a seeded dependency cache, so builds work offline without reversing the wrapper decision. Verified with `--network none` on a fresh clone.
+- **The token budget binds before the turn cap.** Against a real repository the agent uses roughly 4–5k tokens per turn, so `max-tokens-per-request` runs out first — a task that completed its edits in 19 turns consumed 150k tokens. Raising `max-turns-per-request` alone changes nothing; move both together. All three bounds are env-configurable, and hitting one is a normal outcome: history is kept and another message continues with a fresh budget.
+- **`/actuator/prometheus`, `/v3/api-docs/**` and `/swagger-ui/**` require auth when auth is enabled.** Metric labels carry tool names, providers and token counts; the OpenAPI document describes every endpoint. `/actuator/health/**` stays open in every mode because load balancers cannot authenticate. `agent.metrics.public-scrape=true` reopens metrics *only* — not the docs, not the API — for a scraper that cannot authenticate.
+- **The agent will make a failing test green by editing production code.** Given a deliberately corrupted assertion it edited `src/main` to satisfy it rather than questioning the test, and reported success — see #26 and `docs/real-repo-validation.md`. Now that it can compile and test, a wrong fix arrives carrying the same evidence as a right one. Review the diff, not the green tick.
+
+## Skills
+
+Repeatable procedures live in `.claude/skills/`. Reach for them rather than
+reconstructing the steps — each exists because the manual version cost real time
+or produced a wrong answer.
+
+- `ship-check` — local distribution verification before a release.
+- `cut-release` — tag, watch the pipeline, verify what was actually published.
+- `redgreen-fix` — bug fixes the evidentiary way: regression test failing first.
+- `verify-published-claim` — check a published artefact really says what you think.
+- `model-toolcall-check` — measure whether a local model can drive the tool loop
+  at all, using the real nine-tool payload. `ollama show` will not tell you.
+- `agent-validate` — drive the agent against a throwaway repo clone and record
+  turns, tokens and what broke. Never point it at the working tree.
