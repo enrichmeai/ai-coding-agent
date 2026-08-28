@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AI Coding Agent</title>
+  <title>Penstock</title>
   <link rel="stylesheet" href="/lib/atom-one-dark.min.css" />
   <script src="/lib/marked.min.js"></script>
   <script src="/lib/highlight.min.js"></script>
@@ -97,7 +97,7 @@
   <div id="app">
     <aside id="sidebar">
       <header>
-        <h1>AI Coding Agent</h1>
+        <h1>Penstock</h1>
         <span id="provider"></span>
       </header>
       <button id="new-session">+ New session</button>
@@ -105,6 +105,7 @@
       <div id="session-actions" style="display: flex; gap: 6px; padding: 0 8px 8px;">
         <button id="export-session" type="button" style="flex: 1; padding: 6px; background: var(--panel2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 12px;">Export</button>
         <button id="import-session" type="button" style="flex: 1; padding: 6px; background: var(--panel2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 12px;">Import</button>
+        <button id="audit-session" type="button" style="flex: 1; padding: 6px; background: var(--panel2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 12px;">Audit</button>
         <input id="import-file" type="file" accept=".md,text/markdown" style="display: none;" />
       </div>
       <div id="sessions"></div>
@@ -137,6 +138,7 @@ const api = {
     return (await fetch('/api/sessions/search?q=' + encodeURIComponent(q) + '&limit=20')).json();
   },
   async getSession(id) { return (await fetch('/api/sessions/' + id)).json(); },
+  async audit(id) { return (await fetch('/api/sessions/' + id + '/audit')).json(); },
   async deleteSession(id) { await fetch('/api/sessions/' + id, { method: 'DELETE' }); },
 };
 
@@ -461,6 +463,48 @@ els.newBtn.addEventListener('click', async () => {
   els.messages.innerHTML = '';
   renderUsage(null);
   els.input.focus();
+});
+
+// Audit trail: what did the agent do in this session, as WHOM. Renders
+// GET /api/sessions/{id}/audit (owner-scoped) in an overlay — timestamp,
+// event type, and the detail that matters per kind.
+document.getElementById('audit-session').addEventListener('click', async () => {
+  if (!state.sessionId) { alert('Open a session first.'); return; }
+  let events;
+  try {
+    events = await api.audit(state.sessionId);
+  } catch (e) {
+    alert('Could not load the audit trail: ' + e.message);
+    return;
+  }
+  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const row = (ev) => {
+    const t = ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString() : '';
+    const d = ev.detail || {};
+    const ok = d.ok === false ? ' style="color:#e66"' : '';
+    const what = ev.eventType === 'tool_call'
+      ? `tool <b>${esc(d.tool)}</b> · ${d.ok ? 'ok' : 'failed'} · ${esc(d.contentBytes ?? 0)} bytes`
+      : `llm <b>${esc(d.provider)}</b> · ${d.ok ? 'ok' : 'failed'} · ${esc(d.inputTokens ?? 0)} in / ${esc(d.outputTokens ?? 0)} out`;
+    return `<div style="display:flex;gap:10px;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px;">
+      <span style="opacity:.6;white-space:nowrap">${esc(t)}</span>
+      <span${ok}>${what}</span></div>`;
+  };
+  const body = events.length
+    ? events.map(row).join('')
+    : '<p style="opacity:.7">No audit events. The audit trail requires persistent storage (AGENT_STORAGE_TYPE=sqlite or postgres); in memory mode nothing is recorded.</p>';
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:50;';
+  overlay.innerHTML = `
+    <div style="background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:10px;max-width:640px;width:90%;max-height:70vh;display:flex;flex-direction:column;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border);">
+        <b>Audit trail — ${events.length} event${events.length === 1 ? '' : 's'}</b>
+        <button id="audit-close" style="background:none;border:none;color:var(--text);cursor:pointer;font-size:16px;">✕</button>
+      </div>
+      <div style="padding:10px 16px;overflow-y:auto;">${body}</div>
+    </div>`;
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  overlay.querySelector('#audit-close').addEventListener('click', () => overlay.remove());
+  document.body.appendChild(overlay);
 });
 
 // Export current session as markdown — browser handles download via Content-Type.
