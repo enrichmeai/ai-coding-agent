@@ -34,7 +34,7 @@ public class GlobTool implements Tool {
     }
 
     @Override
-    public ToolResult execute(String callId, Map<String, Object> args) {
+    public ToolResult execute(String callId, Map<String, Object> args, ToolContext context) {
         try {
             String pattern = (String) args.get("pattern");
             Path base = args.get("path") != null

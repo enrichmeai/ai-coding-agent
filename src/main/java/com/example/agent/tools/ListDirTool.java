@@ -71,7 +71,7 @@ public class ListDirTool implements Tool {
     }
 
     @Override
-    public ToolResult execute(String callId, Map<String, Object> args) {
+    public ToolResult execute(String callId, Map<String, Object> args, ToolContext context) {
         try {
             Path dir = args.get("path") != null && !((String) args.get("path")).isBlank()
                     ? WorkspacePath.resolve(workspace, (String) args.get("path"))

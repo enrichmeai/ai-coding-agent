@@ -19,8 +19,15 @@ public interface Tool {
     /** JSON-Schema for {@code arguments}. */
     Map<String, Object> inputSchema();
 
-    /** Execute the tool with the given arguments and return a result. */
-    ToolResult execute(String callId, Map<String, Object> arguments);
+    /**
+     * Execute the tool with the given arguments and return a result.
+     *
+     * {@code context} says who this call acts for; it is resolved on the
+     * request thread and passed explicitly (never read thread-local security
+     * state here — the agent loop runs on pooled threads without one). Tools
+     * that don't need identity ignore it.
+     */
+    ToolResult execute(String callId, Map<String, Object> arguments, ToolContext context);
 
     /** Provider-neutral spec for the LLM. */
     default ToolSpec spec() {

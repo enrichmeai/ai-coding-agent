@@ -41,7 +41,7 @@ class ShellToolTest {
         props.getTools().setShell(shellCfg);
 
         ShellTool tool = new ShellTool(workspace, props);
-        ToolResult result = tool.execute("test-call-1", Map.of("command", "curl https://evil.com"));
+        ToolResult result = tool.execute("test-call-1", Map.of("command", "curl https://evil.com"), ToolContext.anonymous());
 
         assertTrue(result.isError());
         assertTrue(result.content().contains("blocked by policy"));
@@ -73,7 +73,7 @@ class ShellToolTest {
         props.getTools().setShell(shellCfg);
 
         ShellTool tool = new ShellTool(workspace, props);
-        ToolResult result = tool.execute("test-call-2", Map.of("command", "ssh user@host"));
+        ToolResult result = tool.execute("test-call-2", Map.of("command", "ssh user@host"), ToolContext.anonymous());
 
         assertTrue(result.isError());
         assertTrue(result.content().contains("blocked by policy"));
@@ -90,7 +90,7 @@ class ShellToolTest {
         props.getTools().setShell(shellCfg);
 
         ShellTool tool = new ShellTool(workspace, props);
-        ToolResult result = tool.execute("test-call-3", Map.of("command", "ls -la"));
+        ToolResult result = tool.execute("test-call-3", Map.of("command", "ls -la"), ToolContext.anonymous());
 
         assertFalse(result.isError(), "Empty allow-list should not reject 'ls -la'");
     }
@@ -106,7 +106,7 @@ class ShellToolTest {
         props.getTools().setShell(shellCfg);
 
         ShellTool tool = new ShellTool(workspace, props);
-        ToolResult result = tool.execute("test-call-4", Map.of("command", "grep foo bar.txt"));
+        ToolResult result = tool.execute("test-call-4", Map.of("command", "grep foo bar.txt"), ToolContext.anonymous());
 
         assertTrue(result.isError());
         assertTrue(result.content().contains("not in allow-list"));
@@ -124,7 +124,7 @@ class ShellToolTest {
         props.getTools().setShell(shellCfg);
 
         ShellTool tool = new ShellTool(workspace, props);
-        ToolResult result = tool.execute("test-call-5", Map.of("command", "ls"));
+        ToolResult result = tool.execute("test-call-5", Map.of("command", "ls"), ToolContext.anonymous());
 
         assertFalse(result.isError(), "Allow-list should accept 'ls'");
     }
@@ -138,7 +138,7 @@ class ShellToolTest {
         props.getTools().setShell(shellCfg);
 
         ShellTool tool = new ShellTool(workspace, props);
-        ToolResult result = tool.execute("test-call-6", Map.of("command", "ls"));
+        ToolResult result = tool.execute("test-call-6", Map.of("command", "ls"), ToolContext.anonymous());
 
         assertTrue(result.isError());
         assertTrue(result.content().contains("disabled"));
@@ -155,7 +155,7 @@ class ShellToolTest {
         props.getTools().setShell(shellCfg);
 
         ShellTool tool = new ShellTool(workspace, props);
-        ToolResult result = tool.execute("test-call-7", Map.of("command", "ls -la /tmp"));
+        ToolResult result = tool.execute("test-call-7", Map.of("command", "ls -la /tmp"), ToolContext.anonymous());
 
         assertFalse(result.isError(), "Allow-list should accept 'ls -la /tmp' (first token 'ls' is allowed)");
     }
@@ -174,7 +174,7 @@ class ShellToolTest {
         // /bin/ls should extract to "ls" and match the allow-list. Use /bin/ls
         // instead of /usr/bin/ls because newer macOS releases ship the binary at
         // /bin only, while Linux has it in both locations.
-        ToolResult result = tool.execute("test-call-8", Map.of("command", "/bin/ls"));
+        ToolResult result = tool.execute("test-call-8", Map.of("command", "/bin/ls"), ToolContext.anonymous());
 
         assertFalse(result.isError(), "Allow-list should accept '/bin/ls' (extracted token 'ls' is allowed)");
     }
@@ -198,7 +198,7 @@ class ShellToolTest {
 
         ShellTool tool = new ShellTool(workspace, props);
         // ./gradlew should extract to "gradlew" and match the allow-list
-        ToolResult result = tool.execute("test-call-9", Map.of("command", "./gradlew build"));
+        ToolResult result = tool.execute("test-call-9", Map.of("command", "./gradlew build"), ToolContext.anonymous());
 
         assertFalse(result.isError(), "Allow-list should accept './gradlew build' (extracted token 'gradlew' is allowed)");
     }
@@ -215,7 +215,7 @@ class ShellToolTest {
 
         ShellTool tool = new ShellTool(workspace, props);
         // curl is in allow-list but blocked by block-list; block-list should win
-        ToolResult result = tool.execute("test-call-10", Map.of("command", "curl https://example.com"));
+        ToolResult result = tool.execute("test-call-10", Map.of("command", "curl https://example.com"), ToolContext.anonymous());
 
         assertTrue(result.isError(), "Block-list should reject curl even if it's in allow-list");
         assertTrue(result.content().contains("blocked by policy"));
@@ -236,7 +236,7 @@ class ShellToolTest {
 
         long start = System.currentTimeMillis();
         ToolResult r = tool.execute("t-slow",
-                Map.of("command", "for i in $(seq 1 100); do echo line $i; sleep 0.2; done"));
+                Map.of("command", "for i in $(seq 1 100); do echo line $i; sleep 0.2; done"), ToolContext.anonymous());
         long elapsedMs = System.currentTimeMillis() - start;
 
         assertTrue(r.isError(), r.content());
@@ -256,7 +256,7 @@ class ShellToolTest {
         ShellTool tool = new ShellTool(workspace, props);
 
         ToolResult r = tool.execute("t-override",
-                Map.of("command", "sleep 30", "timeout_seconds", 1));
+                Map.of("command", "sleep 30", "timeout_seconds", 1), ToolContext.anonymous());
 
         assertTrue(r.isError());
         assertTrue(r.content().contains("timed out"), r.content());

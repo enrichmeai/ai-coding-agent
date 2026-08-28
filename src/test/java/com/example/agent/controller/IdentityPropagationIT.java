@@ -71,6 +71,10 @@ class IdentityPropagationIT {
     @Autowired AuditEventRepository auditRepo;
     @Autowired SessionRepository sessionRepo;
 
+    /** Captures the ToolContext a tool receives — the Part B seam under test. */
+    static final java.util.concurrent.atomic.AtomicReference<com.example.agent.tools.ToolContext> SEEN_CONTEXT =
+            new java.util.concurrent.atomic.AtomicReference<>();
+
     @TestConfiguration
     static class StubCfg {
         @Bean @Primary
@@ -84,11 +88,25 @@ class IdentityPropagationIT {
                     if (last.role() == Role.USER) {
                         return new CompletionResult(
                                 ChatMessage.assistant("Checking.",
-                                        List.of(new ToolCall("tc1", "list_dir", Map.of()))),
+                                        List.of(new ToolCall("tc1", "ctx_probe", Map.of()))),
                                 new TokenUsage(10, 5));
                     }
                     return new CompletionResult(ChatMessage.assistantText("All done."),
                             new TokenUsage(7, 3));
+                }
+            };
+        }
+
+        @Bean
+        com.example.agent.tools.Tool ctxProbe() {
+            return new com.example.agent.tools.Tool() {
+                @Override public String name() { return "ctx_probe"; }
+                @Override public String description() { return "captures the identity it runs as"; }
+                @Override public Map<String, Object> inputSchema() { return Map.of(); }
+                @Override public com.example.agent.model.ToolResult execute(
+                        String id, Map<String, Object> args, com.example.agent.tools.ToolContext context) {
+                    SEEN_CONTEXT.set(context);
+                    return com.example.agent.model.ToolResult.ok(id, "probed");
                 }
             };
         }
@@ -144,6 +162,12 @@ class IdentityPropagationIT {
                 .contains("llm_call", "tool_call");
         assertThat(events).extracting(AuditEventEntity::getUserId)
                 .containsOnly("alice");
+
+        // Part B seam: the tool itself received the acting identity as an
+        // explicit ToolContext, across the SSE executor boundary.
+        assertThat(SEEN_CONTEXT.get()).isNotNull();
+        assertThat(SEEN_CONTEXT.get().userId()).isEqualTo("alice");
+        assertThat(SEEN_CONTEXT.get().sessionId()).isEqualTo(sessionId);
     }
 
     private static String extractSessionId(String body) {

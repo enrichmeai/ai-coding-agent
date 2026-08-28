@@ -44,7 +44,7 @@ public class GitTool implements Tool {
     }
 
     @Override
-    public ToolResult execute(String callId, Map<String, Object> arguments) {
+    public ToolResult execute(String callId, Map<String, Object> arguments, ToolContext context) {
         String sub = (String) arguments.get("subcommand");
         if (sub == null || !ALLOWED.contains(sub)) {
             return ToolResult.error(callId, "Git subcommand not allowed: " + sub + ". Allowed: " + ALLOWED);
@@ -56,7 +56,7 @@ public class GitTool implements Tool {
         for (String a : extra) {
             cmd.append(' ').append(shellQuote(a));
         }
-        return shellTool.execute(callId, Map.of("command", cmd.toString()));
+        return shellTool.execute(callId, Map.of("command", cmd.toString()), context);
     }
 
     private static String shellQuote(String s) {

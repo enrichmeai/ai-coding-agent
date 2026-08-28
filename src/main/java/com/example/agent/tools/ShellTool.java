@@ -79,7 +79,7 @@ public class ShellTool implements Tool {
     }
 
     @Override
-    public ToolResult execute(String callId, Map<String, Object> args) {
+    public ToolResult execute(String callId, Map<String, Object> args, ToolContext context) {
         if (!cfg.isEnabled()) return ToolResult.error(callId, "Shell tool is disabled.");
 
         String command = (String) args.get("command");

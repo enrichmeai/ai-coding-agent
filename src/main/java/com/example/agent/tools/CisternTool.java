@@ -33,14 +33,19 @@ public class CisternTool implements Tool {
 
     private static final Duration TIMEOUT = Duration.ofSeconds(20);
 
+    private static final String SERVICE = "cistern";
+
     private final String baseUrl;
     private final String token;
     private final WebClient webClient;
+    private final CredentialResolver credentials;
 
-    public CisternTool(AgentProperties props, WebClient.Builder webClientBuilder) {
+    public CisternTool(AgentProperties props, WebClient.Builder webClientBuilder,
+                       CredentialResolver credentials) {
         this.baseUrl = trimTrailingSlash(props.getTools().getCistern().getBaseUrl());
         this.token = props.getTools().getCistern().getToken();
         this.webClient = webClientBuilder.build();
+        this.credentials = credentials;
     }
 
     @Override
@@ -78,8 +83,12 @@ public class CisternTool implements Tool {
     }
 
     @Override
-    public ToolResult execute(String callId, Map<String, Object> arguments) {
-        if (baseUrl.isBlank() || token.isBlank()) {
+    public ToolResult execute(String callId, Map<String, Object> arguments, ToolContext context) {
+        // Part C: prefer a credential provisioned for the acting user; fall
+        // back to this agent's own service credential (the documented default).
+        String perUser = credentials == null ? null : credentials.resolve(SERVICE, context);
+        String bearer = perUser != null ? perUser : token;
+        if (baseUrl.isBlank() || bearer == null || bearer.isBlank()) {
             return ToolResult.error(callId,
                 "No pod configured. Set agent.tools.cistern.base-url and .token.");
         }
@@ -92,13 +101,13 @@ public class CisternTool implements Tool {
 
         try {
             return switch (type) {
-                case "read", "list" -> ToolResult.ok(callId, get(uri));
-                case "receipts" -> ToolResult.ok(callId, get(uri + "?receipts"));
+                case "read", "list" -> ToolResult.ok(callId, get(uri, bearer));
+                case "receipts" -> ToolResult.ok(callId, get(uri + "?receipts", bearer));
                 case "write" -> {
                     String content = string(arguments, "content");
                     String contentType = string(arguments, "contentType");
                     yield ToolResult.ok(callId, put(uri,
-                        content, contentType.isBlank() ? "text/turtle" : contentType));
+                        content, contentType.isBlank() ? "text/turtle" : contentType, bearer));
                 }
                 default -> ToolResult.error(callId, "Unknown operation: " + type);
             };
@@ -133,20 +142,20 @@ public class CisternTool implements Tool {
         return ToolResult.error(callId, "Pod returned " + e.getStatusCode() + " for " + uri);
     }
 
-    private String get(String uri) {
+    private String get(String uri, String bearer) {
         return webClient.get()
             .uri(uri)
-            .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+            .header(HttpHeaders.AUTHORIZATION, "Bearer " + bearer)
             .retrieve()
             .bodyToMono(String.class)
             .timeout(TIMEOUT)
             .block();
     }
 
-    private String put(String uri, String content, String contentType) {
+    private String put(String uri, String content, String contentType, String bearer) {
         webClient.put()
             .uri(uri)
-            .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+            .header(HttpHeaders.AUTHORIZATION, "Bearer " + bearer)
             .header(HttpHeaders.CONTENT_TYPE, contentType)
             .bodyValue(content)
             .retrieve()

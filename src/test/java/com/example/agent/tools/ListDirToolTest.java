@@ -31,7 +31,7 @@ class ListDirToolTest {
     void collapsesASingleChildChainSoAPackageTreeCostsOneCall() {
         // The exact shape that cost six agent turns: every level has one child until
         // 'controller'. At the default depth the whole chain must still be visible.
-        ToolResult r = tool.execute("c1", Map.of("path", "src/test"));
+        ToolResult r = tool.execute("c1", Map.of("path", "src/test"), ToolContext.anonymous());
 
         assertThat(r.isError()).isFalse();
         assertThat(r.content())
@@ -44,7 +44,7 @@ class ListDirToolTest {
         Files.createDirectories(workspace.resolve("multi/alpha"));
         Files.createDirectories(workspace.resolve("multi/beta"));
 
-        ToolResult r = tool.execute("c1b", Map.of("path", "multi"));
+        ToolResult r = tool.execute("c1b", Map.of("path", "multi"), ToolContext.anonymous());
 
         assertThat(r.content()).contains("alpha/").contains("beta/");
         assertThat(r.content()).doesNotContain("alpha/beta");
@@ -55,7 +55,7 @@ class ListDirToolTest {
         Files.createDirectories(workspace.resolve("withfile/sub"));
         Files.writeString(workspace.resolve("withfile/note.txt"), "x");
 
-        ToolResult r = tool.execute("c1c", Map.of("path", "withfile"));
+        ToolResult r = tool.execute("c1c", Map.of("path", "withfile"), ToolContext.anonymous());
 
         assertThat(r.content()).contains("note.txt").contains("sub/");
     }
@@ -63,14 +63,14 @@ class ListDirToolTest {
     @Test
     void stillStopsAtTheRequestedDepthOnceTheTreeBranches() {
         // 'agent' branches, so its children are one real level below.
-        ToolResult r = tool.execute("c1d", Map.of("path", "src", "depth", 1));
+        ToolResult r = tool.execute("c1d", Map.of("path", "src", "depth", 1), ToolContext.anonymous());
 
         assertThat(r.content()).contains("test/java/com/example/agent/controller/");
     }
 
     @Test
     void depthDescendsSeveralLevelsInOneCall() {
-        ToolResult r = tool.execute("c2", Map.of("path", "src/test/java", "depth", 5));
+        ToolResult r = tool.execute("c2", Map.of("path", "src/test/java", "depth", 5), ToolContext.anonymous());
 
         assertThat(r.isError()).isFalse();
         assertThat(r.content())
@@ -83,7 +83,7 @@ class ListDirToolTest {
 
     @Test
     void acceptsDepthAsAStringSinceModelsOftenSendOne() {
-        ToolResult r = tool.execute("c3", Map.of("path", "src/test/java", "depth", "5"));
+        ToolResult r = tool.execute("c3", Map.of("path", "src/test/java", "depth", "5"), ToolContext.anonymous());
 
         assertThat(r.content()).contains("AgentControllerIT.java");
     }
@@ -95,7 +95,7 @@ class ListDirToolTest {
         Files.createDirectories(workspace.resolve(".git/objects"));
         Files.writeString(workspace.resolve(".git/objects/abc"), "x");
 
-        ToolResult r = tool.execute("c4", Map.of("depth", 6));
+        ToolResult r = tool.execute("c4", Map.of("depth", 6), ToolContext.anonymous());
 
         // The directories themselves are still visible; their contents are not.
         assertThat(r.content()).contains("build/").contains(".git/");
@@ -109,7 +109,7 @@ class ListDirToolTest {
             Files.writeString(workspace.resolve("file" + i + ".txt"), "x");
         }
 
-        ToolResult r = tool.execute("c5", Map.of("max_entries", 5));
+        ToolResult r = tool.execute("c5", Map.of("max_entries", 5), ToolContext.anonymous());
 
         assertThat(r.content()).contains("listing truncated at 5 entries");
     }
@@ -124,7 +124,7 @@ class ListDirToolTest {
             assumeThat(false).as("symlinks not supported here").isTrue();
         }
 
-        ToolResult r = tool.execute("c6", Map.of("depth", 5));
+        ToolResult r = tool.execute("c6", Map.of("depth", 5), ToolContext.anonymous());
 
         assertThat(r.content()).contains("escape");
         assertThat(r.content()).contains("symlink, not followed");
@@ -134,14 +134,14 @@ class ListDirToolTest {
 
     @Test
     void rejectsTraversalOutsideTheWorkspace() {
-        ToolResult r = tool.execute("c7", Map.of("path", "../.."));
+        ToolResult r = tool.execute("c7", Map.of("path", "../.."), ToolContext.anonymous());
 
         assertThat(r.isError()).isTrue();
     }
 
     @Test
     void reportsWhenThePathIsNotADirectory() {
-        ToolResult r = tool.execute("c8", Map.of("path", "README.md"));
+        ToolResult r = tool.execute("c8", Map.of("path", "README.md"), ToolContext.anonymous());
 
         assertThat(r.isError()).isTrue();
         assertThat(r.content()).contains("Not a directory");
