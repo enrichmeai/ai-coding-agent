@@ -55,4 +55,4 @@ When reporting scan numbers, decompose by location: findings in `agent.jar` are 
 
 - Failed run = nothing published (the smoke test gates the push) → fix, then move the tag: `git tag -f -a vX.Y.Z <sha> && git push --force origin vX.Y.Z`. Never move a tag whose release published.
 - 8-second failures are action-resolution errors (e.g. `trivy-action` pins are `v`-prefixed); ~30-second failures at "Bootstrap Gradle wrapper" are transient CDN issues — `gh run rerun <id> --failed`.
-- After it lands: notify the coordinating Cistern session if one is active (the site links releases).
+- After it lands: notify the coordinating Cistern session if one is active — the site links releases, and the T6.3 demo compose pins Penstock by **explicit tag** (deliberately, so readers get the image the walkthrough was written against). It does not follow `:latest`; every release needs that pin bumped consciously on their side, so tell them the new version explicitly.
