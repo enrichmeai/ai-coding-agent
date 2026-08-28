@@ -59,6 +59,10 @@ services:
       AGENT_SQLITE_PATH:  /data/agent.db
 
       # ---- Auth ----
+      # Off by default HERE deliberately: this compose file is the checkout/dev/
+      # offline-demo stack (demo-offline.sh drives the API unauthenticated).
+      # The published image (Dockerfile ENV) defaults auth ON — that is the
+      # surface strangers run. Enable here with AGENT_AUTH_ENABLED=true.
       AGENT_AUTH_ENABLED:  ${AGENT_AUTH_ENABLED:-false}
       AGENT_AUTH_USERNAME: ${AGENT_AUTH_USERNAME:-admin}
       # No default: leaving it unset makes the app generate a random password
