@@ -18,6 +18,7 @@ public class AgentProperties {
     private Cors cors = new Cors();
     private Sse sse = new Sse();
     private RateLimit rateLimit = new RateLimit();
+    private Metrics metrics = new Metrics();
 
     public String getWorkspace() { return workspace; }
     public void setWorkspace(String workspace) { this.workspace = workspace; }
@@ -30,6 +31,9 @@ public class AgentProperties {
 
     public Storage getStorage() { return storage; }
     public void setStorage(Storage storage) { this.storage = storage; }
+
+    public Metrics getMetrics() { return metrics; }
+    public void setMetrics(Metrics metrics) { this.metrics = metrics; }
 
     public Auth getAuth() { return auth; }
 
@@ -357,6 +361,22 @@ public class AgentProperties {
      * needs none. Listing origins enables them with credentials; the single
      * entry "*" allows any origin but with credentials disabled (never both).
      */
+    public static class Metrics {
+        /**
+         * Whether /actuator/prometheus may be scraped without authenticating while
+         * auth is enabled. Default false: the metric labels carry tool names,
+         * provider names, token counts and request rates, which is operational
+         * detail about a private deployment. Set true where the scraper cannot
+         * authenticate and the port is already network-restricted.
+         *
+         * /actuator/health/** is unaffected and always open — load balancers need it.
+         */
+        private boolean publicScrape = false;
+
+        public boolean isPublicScrape() { return publicScrape; }
+        public void setPublicScrape(boolean publicScrape) { this.publicScrape = publicScrape; }
+    }
+
     public static class Cors {
         private List<String> allowedOrigins = List.of();
 

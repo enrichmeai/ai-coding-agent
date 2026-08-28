@@ -93,6 +93,13 @@ agent:
     # Set to 0 (PT0S) to disable. See docs/adr/0002-multi-instance-sse.md.
     heartbeat-interval: ${AGENT_SSE_HEARTBEAT_INTERVAL:15s}
 
+  metrics:
+    # Scraping /actuator/prometheus without credentials while auth is enabled.
+    # Default false: metric labels leak tool names, providers, token counts and
+    # request rates. Set true only where the scraper cannot authenticate and the
+    # port is network-restricted. /actuator/health/** is always open regardless.
+    public-scrape: ${AGENT_METRICS_PUBLIC_SCRAPE:false}
+
   rate-limit:
     enabled: ${AGENT_RATE_LIMIT_ENABLED:true}
     chat:

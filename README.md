@@ -67,7 +67,7 @@ your own systems.
 - **Token usage tracking** — per-call usage is accumulated per session and exposed via the API and UI.
 - **Pluggable persistence**: in-memory (default) or SQLite via JPA/Hibernate. Switch with one env var.
 - **Optional HTTP Basic auth** in front of the API and UI.
-- **OpenAPI / Swagger UI** at `/swagger-ui.html` for easy API exploration.
+- **OpenAPI / Swagger UI** at `/swagger-ui.html` for easy API exploration — behind auth when auth is enabled, since the document describes every endpoint and schema.
 - **Explicit CORS** configuration, customisable for production.
 - **Docker** + `docker-compose.yml` with a persistent SQLite volume and a bind-mounted workspace.
 - **Sandboxed workspace**: every file/shell path resolves relative to `agent.workspace` and path traversal is blocked.
@@ -78,7 +78,7 @@ your own systems.
 
 - **Structured logging** — `logback-spring.xml` emits plain text by default; activate `-Dspring.profiles.active=prod` for JSON via `logstash-logback-encoder`. Every log line carries `requestId`, `userId`, and (where applicable) `sessionId` in MDC.
 - **Request IDs** — the `RequestIdFilter` reads `X-Request-Id` or generates one, stamps MDC, and echoes the ID as a response header so clients can correlate.
-- **Metrics** — `/actuator/prometheus` exposes `llm_calls_total{provider,outcome}`, `llm_tokens_total{provider,kind}`, `tool_calls_total{tool,outcome}`, `tool_call_duration_ms{tool}`, and `sse_streams_active` gauge.
+- **Metrics** — `/actuator/prometheus` exposes `llm_calls_total{provider,outcome}`, `llm_tokens_total{provider,kind}`, `tool_calls_total{tool,outcome}`, `tool_call_duration_ms{tool}`, and `sse_streams_active` gauge. **Requires authentication when auth is enabled** — the labels carry tool names, providers and token counts. If your scraper cannot authenticate, set `AGENT_METRICS_PUBLIC_SCRAPE=true` and restrict the port at the network; `/actuator/health/**` stays open either way for load balancers.
 - **Readiness vs liveness** — `/actuator/health/liveness` stays up while an LLM provider is misconfigured; `/actuator/health/readiness` goes DOWN so load balancers pull the instance out of rotation. Custom `LlmProviderHealthIndicator` does a config-only check (no external calls).
 - **Audit log** — every LLM call and tool invocation is persisted to `audit_events` (SQLite mode only). Owner-scoped read at `GET /api/sessions/{id}/audit`.
 - **Graceful SSE shutdown** — on `ContextClosedEvent` the `SseEmitterRegistry` sends a terminating `shutdown` event and completes every in-flight emitter so clients don't see socket resets.
