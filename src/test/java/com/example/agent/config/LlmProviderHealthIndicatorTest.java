@@ -78,7 +78,7 @@ class LlmProviderHealthIndicatorTest {
         // Arrange
         LlmProvider provider = new StubLlmProvider("anthropic");
         AgentProperties props = createProperties("anthropic", "sk-test-key", null);
-        LlmProviderHealthIndicator indicator = new LlmProviderHealthIndicator(provider, props);
+        LlmProviderHealthIndicator indicator = new LlmProviderHealthIndicator(provider, props, new com.example.agent.llm.ToolCallFormatObserver());
 
         // Act
         Health health = indicator.health();
@@ -93,7 +93,7 @@ class LlmProviderHealthIndicatorTest {
         // Arrange
         LlmProvider provider = new StubLlmProvider("anthropic");
         AgentProperties props = createProperties("anthropic", "", null);
-        LlmProviderHealthIndicator indicator = new LlmProviderHealthIndicator(provider, props);
+        LlmProviderHealthIndicator indicator = new LlmProviderHealthIndicator(provider, props, new com.example.agent.llm.ToolCallFormatObserver());
 
         // Act
         Health health = indicator.health();
@@ -109,7 +109,7 @@ class LlmProviderHealthIndicatorTest {
         // Arrange
         LlmProvider provider = new StubLlmProvider("anthropic");
         AgentProperties props = createProperties("anthropic", null, null);
-        LlmProviderHealthIndicator indicator = new LlmProviderHealthIndicator(provider, props);
+        LlmProviderHealthIndicator indicator = new LlmProviderHealthIndicator(provider, props, new com.example.agent.llm.ToolCallFormatObserver());
 
         // Act
         Health health = indicator.health();
@@ -125,7 +125,7 @@ class LlmProviderHealthIndicatorTest {
         // Arrange
         LlmProvider provider = new StubLlmProvider("openai");
         AgentProperties props = createProperties("openai", null, "sk-openai-test");
-        LlmProviderHealthIndicator indicator = new LlmProviderHealthIndicator(provider, props);
+        LlmProviderHealthIndicator indicator = new LlmProviderHealthIndicator(provider, props, new com.example.agent.llm.ToolCallFormatObserver());
 
         // Act
         Health health = indicator.health();
@@ -140,7 +140,7 @@ class LlmProviderHealthIndicatorTest {
         // Arrange
         LlmProvider provider = new StubLlmProvider("openai");
         AgentProperties props = createProperties("openai", null, "");
-        LlmProviderHealthIndicator indicator = new LlmProviderHealthIndicator(provider, props);
+        LlmProviderHealthIndicator indicator = new LlmProviderHealthIndicator(provider, props, new com.example.agent.llm.ToolCallFormatObserver());
 
         // Act
         Health health = indicator.health();
@@ -156,7 +156,7 @@ class LlmProviderHealthIndicatorTest {
         // Arrange
         LlmProvider provider = new StubLlmProvider("openai");
         AgentProperties props = createProperties("openai", null, null);
-        LlmProviderHealthIndicator indicator = new LlmProviderHealthIndicator(provider, props);
+        LlmProviderHealthIndicator indicator = new LlmProviderHealthIndicator(provider, props, new com.example.agent.llm.ToolCallFormatObserver());
 
         // Act
         Health health = indicator.health();
@@ -172,7 +172,7 @@ class LlmProviderHealthIndicatorTest {
         // Arrange: Ollama does not require an API key; it always has a default base-url
         LlmProvider provider = new StubLlmProvider("ollama");
         AgentProperties props = createProperties("ollama", null, null);
-        LlmProviderHealthIndicator indicator = new LlmProviderHealthIndicator(provider, props);
+        LlmProviderHealthIndicator indicator = new LlmProviderHealthIndicator(provider, props, new com.example.agent.llm.ToolCallFormatObserver());
 
         // Act
         Health health = indicator.health();
@@ -187,7 +187,7 @@ class LlmProviderHealthIndicatorTest {
         // Arrange: Even if we set random values, Ollama should still be UP
         LlmProvider provider = new StubLlmProvider("ollama");
         AgentProperties props = createProperties("ollama", "", "");
-        LlmProviderHealthIndicator indicator = new LlmProviderHealthIndicator(provider, props);
+        LlmProviderHealthIndicator indicator = new LlmProviderHealthIndicator(provider, props, new com.example.agent.llm.ToolCallFormatObserver());
 
         // Act
         Health health = indicator.health();
@@ -201,7 +201,7 @@ class LlmProviderHealthIndicatorTest {
     void copilotWithTokenReturnsUp() {
         LlmProvider provider = new StubLlmProvider("copilot");
         AgentProperties props = createProperties("copilot", null, null, "ghp-test-token");
-        LlmProviderHealthIndicator indicator = new LlmProviderHealthIndicator(provider, props);
+        LlmProviderHealthIndicator indicator = new LlmProviderHealthIndicator(provider, props, new com.example.agent.llm.ToolCallFormatObserver());
 
         Health health = indicator.health();
 
@@ -213,7 +213,7 @@ class LlmProviderHealthIndicatorTest {
     void copilotWithBlankTokenReturnsDown() {
         LlmProvider provider = new StubLlmProvider("copilot");
         AgentProperties props = createProperties("copilot", null, null, "");
-        LlmProviderHealthIndicator indicator = new LlmProviderHealthIndicator(provider, props);
+        LlmProviderHealthIndicator indicator = new LlmProviderHealthIndicator(provider, props, new com.example.agent.llm.ToolCallFormatObserver());
 
         Health health = indicator.health();
 
@@ -227,7 +227,7 @@ class LlmProviderHealthIndicatorTest {
     void copilotWithNullTokenReturnsDown() {
         LlmProvider provider = new StubLlmProvider("copilot");
         AgentProperties props = createProperties("copilot", null, null, null);
-        LlmProviderHealthIndicator indicator = new LlmProviderHealthIndicator(provider, props);
+        LlmProviderHealthIndicator indicator = new LlmProviderHealthIndicator(provider, props, new com.example.agent.llm.ToolCallFormatObserver());
 
         Health health = indicator.health();
 
