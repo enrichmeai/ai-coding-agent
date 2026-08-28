@@ -72,16 +72,13 @@ RUN mkdir -p /workspace /data /home/agent/.gradle \
     && chown -R agent:agent /app /workspace /data /home/agent /opt/gradle-seed
 USER agent
 
-# Auth ON by default in the published image: strangers docker-run this against
-# real workspaces, and a shell-executing agent must not ship open. With no
-# AGENT_AUTH_PASSWORD set, a random password is generated and logged once at
-# startup (docker logs <container>). Opt out explicitly for local experiments
-# with -e AGENT_AUTH_ENABLED=false. The bare app default (bootRun, compose dev
-# stack) remains off — this is the distribution surface only.
+# Auth is ON by the APP's own default now (AgentProperties.Auth) — no ENV
+# needed here; one source of truth. With no AGENT_AUTH_PASSWORD set, a random
+# password is generated and logged once at startup (docker logs <container>).
+# Opt out explicitly for local experiments with -e AGENT_AUTH_ENABLED=false.
 ENV AGENT_WORKSPACE=/workspace \
     AGENT_SQLITE_PATH=/data/agent.db \
     GRADLE_USER_HOME=/home/agent/.gradle \
-    AGENT_AUTH_ENABLED=true \
     JAVA_OPTS=""
 
 EXPOSE 8080

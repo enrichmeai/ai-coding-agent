@@ -333,7 +333,9 @@ public class AgentProperties {
      *  - {@code enabled=true, mode=disabled}: equivalent to {@code enabled=false}.
      */
     public static class Auth {
-        private boolean enabled = false;
+        // Secure by default: an agent that executes shell commands never ships
+        // open — opting OUT (dev/demo surfaces) is the explicit act.
+        private boolean enabled = true;
         /** basic | oidc | disabled */
         private String mode = "basic";
         // ---- Basic-mode legacy settings ----

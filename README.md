@@ -269,7 +269,7 @@ overridden with env vars or `--agent.*=value` command-line flags.
 | `agent.workspace` | `${user.dir}/agent-workspace` | `AGENT_WORKSPACE` | Folder the agent is restricted to. |
 | `agent.storage.type` | `memory` | `AGENT_STORAGE_TYPE` | `memory` or `sqlite`. |
 | `agent.storage.sqlite-path` | `./data/agent.db` | `AGENT_SQLITE_PATH` | SQLite DB file. |
-| `agent.auth.enabled` | `false` | `AGENT_AUTH_ENABLED` | Enable HTTP Basic auth. |
+| `agent.auth.enabled` | `true` | `AGENT_AUTH_ENABLED` | Auth is on by default — a shell-executing agent never ships open. Set `false` explicitly for local experiments; the compose dev/demo stack does. |
 | `agent.auth.username` | `admin` | `AGENT_AUTH_USERNAME` | |
 | `agent.auth.password` | *(generated at startup if unset)* | `AGENT_AUTH_PASSWORD` | Unset (or the old `change-me`) → a random password is generated and logged once. |
 | `agent.cors.allowed-origins` | *(none — cross-origin locked)* | `AGENT_CORS_ALLOWED_ORIGINS` | Comma-separated origins granted CORS with credentials; `*` allows any origin without credentials. The bundled UI is same-origin and needs none. |
