@@ -74,10 +74,16 @@ superseded rather than to merge both. Decide with the other session, not alone.
 ## Reviewing thoroughly
 
 **Verify a claim against current `main` before acting on it**, including one from
-a teammate. Two defects reported as open had both already been fixed, and the
-argument attached to them rested on the repo being private when it had become
-public. Read the file on `main`; do not trust a remembered line number or an
-editor buffer, which may be many merges stale.
+a teammate — and check it *part by part*, because reports are rarely uniformly
+right or wrong. A session once reported two defects: the first was already fixed,
+and the second had two halves of which only one was — the CORS misconfiguration
+was fixed, while the auth-disabled-by-default half it was bundled with is still
+true today. The premise attached to both, that the repo was private and so the
+changes were free, had also gone stale: the repo is public.
+
+Answering "both already fixed" would have been as wrong as accepting the report.
+Read each claim against the file on `main`; do not trust a remembered line
+number or an editor buffer, which may be many merges stale.
 
 **Confirm a review request actually attached.** Requesting the Copilot reviewer
 returned HTTP 200 while `requested_reviewers` stayed empty — the bot was not a
@@ -94,6 +100,16 @@ gh pr view <N> --repo enrichmeai/penstock \
   --json state,mergeable,statusCheckRollup \
   --jq '"state=\(.state) mergeable=\(.mergeable) checks=\([.statusCheckRollup[]? | "\(.name):\(.conclusion // .status)"] | join(", "))"'
 ```
+
+## Where this stops
+
+This skill covers PR, branch and local-state survey only. It deliberately does
+not restate procedures that live elsewhere — one source of truth per procedure:
+
+- **Does it still ship locally?** → `ship-check`
+- **Tagging, watching the pipeline, verifying what was published** → `cut-release`
+- **Checking a claim about a release, image, SBOM or scan report against a
+  primary source** → `verify-published-claim`
 
 ## After a merge
 
