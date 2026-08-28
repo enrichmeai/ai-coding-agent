@@ -85,6 +85,16 @@ Answering "both already fixed" would have been as wrong as accepting the report.
 Read each claim against the file on `main`; do not trust a remembered line
 number or an editor buffer, which may be many merges stale.
 
+**When correcting someone's account of a third party, name the artifact.** The
+sequel to that example: a second session objected that the reporter had never
+made the CORS claim at all. Both of us were right. The reporter had messaged us
+separately with different content, so the quote was verbatim in one transcript
+and genuinely absent from the other, and neither of us had said which document
+we meant. "What X said" is not one document — third-party reports are not only
+non-uniformly correct, they are non-uniformly distributed. Cite the message,
+issue comment or PR body you are working from, and expect a teammate's copy to
+differ.
+
 **Confirm a review request actually attached.** Requesting the Copilot reviewer
 returned HTTP 200 while `requested_reviewers` stayed empty — the bot was not a
 collaborator. A 200 is not evidence:
