@@ -156,7 +156,9 @@ public class AgentService {
             if (perRequestTotal >= props.getLlm().getMaxTokensPerRequest()) {
                 long maxRequestTokens = props.getLlm().getMaxTokensPerRequest();
                 appendAndEmit(session, ChatMessage.assistantText(
-                        "Per-request token budget reached (limit: " + maxRequestTokens + " tokens). Ask a narrower question or continue."), emit);
+                        "Per-request token budget reached (limit: " + maxRequestTokens + " tokens). " +
+                        "Send another message to continue — the history is kept and the next " +
+                        "request starts with a fresh budget — or ask something narrower."), emit);
                 if (titleUpdated) sessionStore.update(session);
                 return;
             }
@@ -171,7 +173,9 @@ public class AgentService {
 
         appendAndEmit(session, ChatMessage.assistantText(
                 "Stopped: reached max turns (" + maxTurns + "). " +
-                "The task may be incomplete — ask to continue or narrow the request."), emit);
+                "The task may be incomplete. Send another message to continue — the " +
+                "history is kept and the next request starts with a fresh turn and " +
+                "token budget."), emit);
         if (titleUpdated) sessionStore.update(session);
     }
 

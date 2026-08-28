@@ -113,9 +113,15 @@ agent:
 
   llm:
     provider: ${AGENT_LLM_PROVIDER:copilot}
-    max-turns-per-request: 10
-    max-tokens-per-request: 50000
-    max-tokens-per-session: 200000
+    # Measured against a real repository (docs/real-repo-validation.md): a search
+    # took 2 turns and a single-file edit 5, but a two-file change with a test hit
+    # the old cap of 10 having produced nothing. After the list_dir fix the same
+    # task completed its edits in ~11 turns — and then stopped on the TOKEN budget,
+    # not the turn cap, at ~54k. Raising turns alone would have changed nothing,
+    # so both move together; roughly 4-5k tokens per turn against a real repo.
+    max-turns-per-request:  ${AGENT_LLM_MAX_TURNS_PER_REQUEST:25}
+    max-tokens-per-request: ${AGENT_LLM_MAX_TOKENS_PER_REQUEST:150000}
+    max-tokens-per-session: ${AGENT_LLM_MAX_TOKENS_PER_SESSION:600000}
     # Per-token streaming from the LLM to the SSE endpoint. See ADR 0003.
     streaming-enabled: ${AGENT_LLM_STREAMING_ENABLED:true}
     system-prompt: |
