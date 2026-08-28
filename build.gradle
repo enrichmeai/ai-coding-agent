@@ -1,7 +1,7 @@
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '3.5.3'
-    id 'io.spring.dependency-management' version '1.1.6'
+    id 'org.springframework.boot' version '4.1.1'
+    id 'io.spring.dependency-management' version '1.1.7'
 }
 
 group = 'com.example'
@@ -34,19 +34,19 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'  // SQLite/Postgres persistence
 
     // SQLite driver + Hibernate community dialect (dev/local default)
-    runtimeOnly   'org.xerial:sqlite-jdbc:3.46.1.0'
-    implementation 'org.hibernate.orm:hibernate-community-dialects:6.6.18.Final'
+    runtimeOnly   'org.xerial:sqlite-jdbc:3.53.2.1'
+    implementation 'org.hibernate.orm:hibernate-community-dialects:7.4.6.Final'
 
     // Postgres driver (production) — version managed by the Boot BOM so CVE
     // patches arrive with framework bumps instead of a stale pin.
     runtimeOnly   'org.postgresql:postgresql'
 
     // OpenAPI / Swagger UI at /swagger-ui.html
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.6'
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.0'
 
     // Phase 1 safety: rate limiting + bucket cache + migrations
     implementation 'com.bucket4j:bucket4j-core:8.10.1'
-    implementation 'com.github.ben-manes.caffeine:caffeine:3.1.8'
+    implementation 'com.github.ben-manes.caffeine:caffeine:3.2.4'
     implementation 'org.flywaydb:flyway-core'
     // Flyway 10+ moved per-vendor support into separate modules. Required for
     // Postgres because flyway-core no longer ships the Postgres parser.
@@ -55,21 +55,21 @@ dependencies {
     // Phase 2 operability: metrics + JSON logs
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'io.micrometer:micrometer-registry-prometheus'
-    implementation 'net.logstash.logback:logstash-logback-encoder:7.4'
+    implementation 'net.logstash.logback:logstash-logback-encoder:9.0'
 
     // JSON
     implementation 'com.fasterxml.jackson.core:jackson-databind'
     implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
 
     // Utilities
-    implementation 'org.apache.commons:commons-lang3:3.14.0'
-    implementation 'commons-io:commons-io:2.16.1'
+    implementation 'org.apache.commons:commons-lang3:3.20.0'
+    implementation 'commons-io:commons-io:2.22.0'
 
     // Lombok (optional but handy)
-    compileOnly 'org.projectlombok:lombok:1.18.34'
-    annotationProcessor 'org.projectlombok:lombok:1.18.34'
-    testCompileOnly 'org.projectlombok:lombok:1.18.34'
-    testAnnotationProcessor 'org.projectlombok:lombok:1.18.34'
+    compileOnly 'org.projectlombok:lombok:1.18.46'
+    annotationProcessor 'org.projectlombok:lombok:1.18.46'
+    testCompileOnly 'org.projectlombok:lombok:1.18.46'
+    testAnnotationProcessor 'org.projectlombok:lombok:1.18.46'
 
     // Test
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
@@ -79,11 +79,11 @@ dependencies {
     testRuntimeOnly   'com.h2database:h2'
 
     // Testcontainers — Postgres integration tests (real DB, real migrations)
-    testImplementation 'org.testcontainers:postgresql:1.20.4'
-    testImplementation 'org.testcontainers:junit-jupiter:1.20.4'
+    testImplementation 'org.testcontainers:postgresql:1.21.4'
+    testImplementation 'org.testcontainers:junit-jupiter:1.21.4'
 
     // MockWebServer — provider streaming + non-streaming wire tests
-    testImplementation 'com.squareup.okhttp3:mockwebserver:4.12.0'
+    testImplementation 'com.squareup.okhttp3:mockwebserver:5.5.0'
 }
 
 tasks.named('test') {
