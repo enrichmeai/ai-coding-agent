@@ -55,6 +55,9 @@ public class CisternTool implements Tool {
             + "'write' (create or replace a resource), 'receipts' (what this agent has "
             + "accessed, if permitted). Access is decided by the owner's rules: a refusal "
             + "means you were not granted that resource — report it, do not work around it. "
+            + "Large responses are truncated to the tool output cap (16 KB by default, "
+            + "head and tail kept with an omission marker) — a truncated read is NOT the "
+            + "full document; say so rather than treating it as complete. "
             + "Requires agent.tools.cistern.base-url and .token.";
     }
 

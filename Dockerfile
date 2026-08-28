@@ -15,7 +15,7 @@
 #
 # Requires BuildKit ($BUILDPLATFORM is BuildKit-defined) — the default builder
 # since Docker 23. On older engines: DOCKER_BUILDKIT=1 docker build ...
-FROM --platform=$BUILDPLATFORM gradle:8.10.2-jdk21 AS build
+FROM --platform=$BUILDPLATFORM gradle:8.14.5-jdk21 AS build
 WORKDIR /workspace
 
 # Populate a Gradle home we can ship: the wrapper distribution plus every
@@ -72,9 +72,16 @@ RUN mkdir -p /workspace /data /home/agent/.gradle \
     && chown -R agent:agent /app /workspace /data /home/agent /opt/gradle-seed
 USER agent
 
+# Auth ON by default in the published image: strangers docker-run this against
+# real workspaces, and a shell-executing agent must not ship open. With no
+# AGENT_AUTH_PASSWORD set, a random password is generated and logged once at
+# startup (docker logs <container>). Opt out explicitly for local experiments
+# with -e AGENT_AUTH_ENABLED=false. The bare app default (bootRun, compose dev
+# stack) remains off — this is the distribution surface only.
 ENV AGENT_WORKSPACE=/workspace \
     AGENT_SQLITE_PATH=/data/agent.db \
     GRADLE_USER_HOME=/home/agent/.gradle \
+    AGENT_AUTH_ENABLED=true \
     JAVA_OPTS=""
 
 EXPOSE 8080

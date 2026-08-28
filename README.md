@@ -140,9 +140,12 @@ docker run -p 8080:8080 \
 ```
 
 Swap the token for `AGENT_LLM_PROVIDER=anthropic` + `ANTHROPIC_API_KEY=...` (or
-`openai` / `ollama`) as needed. Add `-e AGENT_AUTH_ENABLED=true` to require
-login — with no `AGENT_AUTH_PASSWORD` set, a random password is generated and
-printed in the container log.
+`openai` / `ollama`) as needed. The published image requires login **by
+default**: with no `AGENT_AUTH_PASSWORD` set, a random password is generated
+and printed once in the container log (`docker logs <container>`). Set
+`AGENT_AUTH_PASSWORD` for a stable one, or opt out explicitly for local
+experiments with `-e AGENT_AUTH_ENABLED=false` — an agent that executes shell
+commands should not sit on a port unauthenticated.
 
 ### From a checkout (compose, fully offline)
 

@@ -1,0 +1,22 @@
+# Keeps the three dependency surfaces from silently accumulating CVEs the way
+# Spring Boot 3.3.4 did (~22 months stale by the time the first Trivy scan ran).
+# Grouped weekly PRs; CI (build.yml) gates them like any other PR.
+version: 2
+updates:
+  - package-ecosystem: gradle
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      gradle-deps:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
