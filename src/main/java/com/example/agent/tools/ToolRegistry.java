@@ -68,18 +68,20 @@ public class ToolRegistry {
 
     /**
      * Invoke a tool on behalf of a session. {@code sessionId} and {@code userId}
-     * are used purely for audit logging and may be {@code null}. The user must be
-     * resolved by the caller — audit writes are async and cannot read the
-     * SecurityContext of the invoking thread.
+     * feed audit logging and the {@link ToolContext} handed to the tool; either
+     * may be {@code null}. The user must be resolved by the caller — neither
+     * audit writes nor tool executions can read the SecurityContext of the
+     * invoking thread (the agent loop runs on pooled threads without one).
      */
     public ToolResult invoke(ToolCall call, String sessionId, String userId) {
         Tool t = tools.get(call.name());
         if (t == null) {
             return ToolResult.error(call.id(), "Unknown tool: " + call.name());
         }
+        ToolContext context = new ToolContext(userId, sessionId);
         long start = System.nanoTime();
         try {
-            ToolResult r = t.execute(call.id(), call.arguments() == null ? Map.of() : call.arguments());
+            ToolResult r = t.execute(call.id(), call.arguments() == null ? Map.of() : call.arguments(), context);
             long durationMs = (System.nanoTime() - start) / 1_000_000;
             log.info("Tool {} ({} ms) isError={}", call.name(), durationMs, r.isError());
 

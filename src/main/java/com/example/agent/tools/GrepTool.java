@@ -47,7 +47,7 @@ public class GrepTool implements Tool {
     }
 
     @Override
-    public ToolResult execute(String callId, Map<String, Object> args) {
+    public ToolResult execute(String callId, Map<String, Object> args, ToolContext context) {
         try {
             String patternStr = (String) args.get("pattern");
             Pattern pattern = Boolean.TRUE.equals(args.get("case_insensitive"))

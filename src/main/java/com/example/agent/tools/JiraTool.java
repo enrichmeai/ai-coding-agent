@@ -53,7 +53,7 @@ public class JiraTool implements Tool {
     }
 
     @Override
-    public ToolResult execute(String callId, Map<String, Object> args) {
+    public ToolResult execute(String callId, Map<String, Object> args, ToolContext context) {
         // Check if Jira is configured
         if (baseUrl == null || baseUrl.isBlank() || token == null || token.isBlank()) {
             return ToolResult.error(callId,

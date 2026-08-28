@@ -3,6 +3,7 @@ package com.example.agent.config;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Strongly-typed bindings for everything under "agent.*" in application.yml.
@@ -16,6 +17,7 @@ public class AgentProperties {
     private Storage storage = new Storage();
     private Auth auth = new Auth();
     private Cors cors = new Cors();
+    private Credentials credentials = new Credentials();
     private Sse sse = new Sse();
     private RateLimit rateLimit = new RateLimit();
     private Metrics metrics = new Metrics();
@@ -39,6 +41,9 @@ public class AgentProperties {
 
     public Cors getCors() { return cors; }
     public void setCors(Cors cors) { this.cors = cors; }
+
+    public Credentials getCredentials() { return credentials; }
+    public void setCredentials(Credentials credentials) { this.credentials = credentials; }
     public void setAuth(Auth auth) { this.auth = auth; }
 
     public Sse getSse() { return sse; }
@@ -353,6 +358,21 @@ public class AgentProperties {
         public void setPassword(String password) { this.password = password; }
         public Oidc getOidc() { return oidc; }
         public void setOidc(Oidc oidc) { this.oidc = oidc; }
+    }
+
+    /**
+     * Per-user outbound credentials for tools that talk to external systems:
+     * {@code agent.credentials.per-user.<service>.<userId> = token}. A user
+     * with no entry falls back to the tool's own service credential (the
+     * default, documented v1 posture). See {@code CredentialResolver}.
+     */
+    public static class Credentials {
+        private Map<String, Map<String, String>> perUser = new java.util.HashMap<>();
+
+        public Map<String, Map<String, String>> getPerUser() { return perUser; }
+        public void setPerUser(Map<String, Map<String, String>> perUser) {
+            this.perUser = perUser == null ? new java.util.HashMap<>() : perUser;
+        }
     }
 
     /**

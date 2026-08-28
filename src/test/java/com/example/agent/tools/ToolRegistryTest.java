@@ -14,6 +14,34 @@ import static org.junit.jupiter.api.Assertions.*;
 class ToolRegistryTest {
 
     @Test
+    void invokePassesResolvedIdentityToTheTool() {
+        // Part B seam: the acting user reaches the tool as an explicit
+        // ToolContext, resolved by the caller on the request thread — never
+        // read from thread-local security state.
+        java.util.concurrent.atomic.AtomicReference<ToolContext> seen =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        Tool tool = new Tool() {
+            @Override public String name() { return "ctx_capture"; }
+            @Override public String description() { return "captures context"; }
+            @Override public Map<String, Object> inputSchema() { return Map.of(); }
+            @Override public ToolResult execute(String id, Map<String, Object> args, ToolContext context) {
+                seen.set(context);
+                return ToolResult.ok(id, "ok");
+            }
+        };
+        ToolRegistry registry = new ToolRegistry(List.of(tool), new AgentProperties());
+
+        registry.invoke(new ToolCall("c1", "ctx_capture", Map.of()), "sess-1", "alice");
+        assertEquals("alice", seen.get().userId());
+        assertEquals("sess-1", seen.get().sessionId());
+
+        // Callers without a user resolve to the anonymous context, never null.
+        registry.invoke(new ToolCall("c2", "ctx_capture", Map.of()));
+        assertEquals(ToolContext.ANONYMOUS, seen.get().userId());
+        assertNull(seen.get().sessionId());
+    }
+
+    @Test
     void toolReturningExactMaxOutputBytesIsNotTruncated() {
         AgentProperties props = new AgentProperties();
         int maxBytes = props.getTools().getMaxOutputBytes();
@@ -22,7 +50,7 @@ class ToolRegistryTest {
             @Override public String name() { return "test"; }
             @Override public String description() { return "test"; }
             @Override public Map<String, Object> inputSchema() { return Map.of(); }
-            @Override public ToolResult execute(String id, Map<String, Object> args) {
+            @Override public ToolResult execute(String id, Map<String, Object> args, ToolContext context) {
                 // Return exactly maxBytes of content
                 String content = "x".repeat(maxBytes);
                 return ToolResult.ok(id, content);
@@ -46,7 +74,7 @@ class ToolRegistryTest {
             @Override public String name() { return "test"; }
             @Override public String description() { return "test"; }
             @Override public Map<String, Object> inputSchema() { return Map.of(); }
-            @Override public ToolResult execute(String id, Map<String, Object> args) {
+            @Override public ToolResult execute(String id, Map<String, Object> args, ToolContext context) {
                 // Return 3x the max bytes
                 String content = "x".repeat(maxBytes * 3);
                 return ToolResult.ok(id, content);
@@ -80,7 +108,7 @@ class ToolRegistryTest {
             @Override public String name() { return "test"; }
             @Override public String description() { return "test"; }
             @Override public Map<String, Object> inputSchema() { return Map.of(); }
-            @Override public ToolResult execute(String id, Map<String, Object> args) {
+            @Override public ToolResult execute(String id, Map<String, Object> args, ToolContext context) {
                 String errorMsg = "x".repeat(maxBytes * 2);
                 return ToolResult.error(id, errorMsg);
             }

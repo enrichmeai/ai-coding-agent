@@ -41,7 +41,7 @@ History windowing (`AgentService.windowedHistory`) applies `agent.llm.context.po
 
 ### Key extension points
 
-- **New tool**: implement `com.example.agent.tools.Tool` and annotate `@Component`. `ToolRegistry` auto-discovers `Tool` beans. See `JiraTool.java` as the reference pattern for integrating external systems.
+- **New tool**: implement `com.example.agent.tools.Tool` and annotate `@Component`. `ToolRegistry` auto-discovers `Tool` beans. `execute` receives a `ToolContext` (acting user + session) — use it, never thread-local security state. A tool that calls an external system with per-user credentials asks `CredentialResolver` first and falls back to its own service credential; `CisternTool.java` is the reference pattern for that, `JiraTool.java` for plain service-credential integrations.
 - **New LLM provider**: implement `com.example.agent.llm.LlmProvider`, annotate `@Component` + `@ConditionalOnProperty(name="agent.llm.provider", havingValue="<your-name>")`, set `agent.llm.provider=<your-name>`. Providers live under `src/main/java/com/example/agent/llm/{copilot,anthropic,openai,ollama}/`.
 - **Retries**: providers should route transient failures through `LlmRetry` (exponential backoff on 429/5xx, honours `Retry-After`).
 
@@ -69,6 +69,8 @@ Sessions are stamped with the authenticated user (or `anonymous` when auth is of
 ### Identity on background threads
 
 The SSE agent loop runs on `sseTaskExecutor` and audit writes are `@Async` — neither thread has a `SecurityContext`, so `CurrentUser`/`SecurityContextHolder` reads there silently return `anonymous`. The invariant: identity is resolved once on the request thread (it *is* `session.getUserId()`, stamped at `create()` and verified by the owner-scoped `get()`) and passed explicitly — `AuditLogger.toolCall/llmCall` take a `userId` parameter, `ToolRegistry.invoke` has a 3-arg overload, and `JpaSessionStore.update` scopes by the session's own userId. The `llm_call` audit lives centrally in `AgentService`, **not** in providers — a new provider must not call `AuditLogger`. `IdentityPropagationIT` guards the executor boundary; a stub-injected unit test cannot catch this class of bug.
+
+Tools receive the same identity as an explicit `ToolContext(userId, sessionId)` on `Tool.execute` (Part B). Per-user outbound credentials (Part C) resolve through `CredentialResolver` — property-backed default: `agent.credentials.per-user.<service>.<userId>` — with fallback to the tool's own service credential, so the shipped posture (agent acts as itself, far system's rules decide) is unchanged until a deployment provisions per-user tokens.
 
 ### Observability
 

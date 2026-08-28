@@ -43,7 +43,7 @@ public class ReadFileTool implements Tool {
     }
 
     @Override
-    public ToolResult execute(String callId, Map<String, Object> args) {
+    public ToolResult execute(String callId, Map<String, Object> args, ToolContext context) {
         try {
             if (!cfg.isEnabled()) return ToolResult.error(callId, "File tool is disabled.");
 

@@ -30,15 +30,15 @@ class FileToolsTest {
         EditFileTool  edit  = new EditFileTool(workspace, props);
 
         ToolResult w = write.execute("c1",
-                Map.of("path", "hello.txt", "content", "Hello, world\nSecond line"));
+                Map.of("path", "hello.txt", "content", "Hello, world\nSecond line"), ToolContext.anonymous());
         assertFalse(w.isError(), w.content());
 
-        ToolResult r = read.execute("c2", Map.of("path", "hello.txt"));
+        ToolResult r = read.execute("c2", Map.of("path", "hello.txt"), ToolContext.anonymous());
         assertFalse(r.isError());
         assertTrue(r.content().contains("Hello, world"));
 
         ToolResult e = edit.execute("c3",
-                Map.of("path", "hello.txt", "old_string", "world", "new_string", "agent"));
+                Map.of("path", "hello.txt", "old_string", "world", "new_string", "agent"), ToolContext.anonymous());
         assertFalse(e.isError(), e.content());
 
         String after = Files.readString(workspace.resolve("hello.txt"));
@@ -48,7 +48,7 @@ class FileToolsTest {
     @Test
     void pathTraversalIsBlocked() {
         WriteFileTool write = new WriteFileTool(workspace, props);
-        ToolResult r = write.execute("c1", Map.of("path", "../escape.txt", "content", "x"));
+        ToolResult r = write.execute("c1", Map.of("path", "../escape.txt", "content", "x"), ToolContext.anonymous());
         assertTrue(r.isError(), "expected path traversal to fail: " + r.content());
     }
 
@@ -57,7 +57,7 @@ class FileToolsTest {
         Files.writeString(workspace.resolve("a.txt"), "foo\nfoo\n");
         EditFileTool edit = new EditFileTool(workspace, props);
         ToolResult r = edit.execute("c1",
-                Map.of("path", "a.txt", "old_string", "foo", "new_string", "bar"));
+                Map.of("path", "a.txt", "old_string", "foo", "new_string", "bar"), ToolContext.anonymous());
         assertTrue(r.isError());
         assertTrue(r.content().contains("appears 2 times"));
     }

@@ -4,6 +4,7 @@ import com.example.agent.config.AgentProperties;
 import com.example.agent.llm.CompletionResult;
 import com.example.agent.llm.LlmProvider;
 import com.example.agent.model.*;
+import com.example.agent.tools.ToolContext;
 import com.example.agent.tools.Tool;
 import com.example.agent.tools.ToolRegistry;
 import com.example.agent.tools.ToolSpec;
@@ -27,7 +28,7 @@ class AgentServiceTest {
                               "properties", Map.of("text", Map.of("type", "string")),
                               "required", List.of("text"));
             }
-            @Override public ToolResult execute(String id, Map<String, Object> args) {
+            @Override public ToolResult execute(String id, Map<String, Object> args, ToolContext context) {
                 return ToolResult.ok(id, "echoed: " + args.get("text"));
             }
         };
@@ -74,7 +75,7 @@ class AgentServiceTest {
             @Override public String name() { return "dummy"; }
             @Override public String description() { return "dummy"; }
             @Override public Map<String, Object> inputSchema() { return Map.of(); }
-            @Override public ToolResult execute(String id, Map<String, Object> args) {
+            @Override public ToolResult execute(String id, Map<String, Object> args, ToolContext context) {
                 return ToolResult.ok(id, "done");
             }
         };
@@ -153,7 +154,7 @@ class AgentServiceTest {
             @Override public String name() { return "echo"; }
             @Override public String description() { return "echo"; }
             @Override public Map<String, Object> inputSchema() { return Map.of("type", "object"); }
-            @Override public ToolResult execute(String id, Map<String, Object> args) {
+            @Override public ToolResult execute(String id, Map<String, Object> args, ToolContext context) {
                 return ToolResult.ok(id, "echoed");
             }
         };
