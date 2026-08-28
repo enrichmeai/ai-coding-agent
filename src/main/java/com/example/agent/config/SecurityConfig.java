@@ -219,11 +219,29 @@ public class SecurityConfig {
             log.info("Auth ENABLED - OAuth providers: {}. HTTP Basic also accepted.", registered);
         }
 
-        http.authorizeHttpRequests(a -> a
-                .requestMatchers("/actuator/health/**", "/actuator/prometheus",
-                                 "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html",
-                                 "/login/**", "/oauth2/**", "/error").permitAll()
-                .anyRequest().authenticated())
+        // Health probes stay open in every mode: a load balancer cannot authenticate,
+        // and the endpoint reports liveness/readiness only.
+        //
+        // Metrics and the API docs used to sit in this same list. Both describe the
+        // deployment to anyone who can reach the port — metric labels carry tool
+        // names, providers, token counts and request rates; the OpenAPI document
+        // describes every endpoint and schema. Neither is needed by infrastructure,
+        // so both now follow the auth setting. Scrapers that cannot authenticate
+        // can reopen metrics alone with agent.metrics.public-scrape=true.
+        boolean publicScrape = props.getMetrics().isPublicScrape();
+        if (publicScrape) {
+            log.warn("Metrics are readable WITHOUT authentication "
+                    + "(agent.metrics.public-scrape=true). Restrict the port at the network.");
+        }
+
+        http.authorizeHttpRequests(a -> {
+            a.requestMatchers("/actuator/health/**",
+                              "/login/**", "/oauth2/**", "/error").permitAll();
+            if (publicScrape) {
+                a.requestMatchers("/actuator/prometheus").permitAll();
+            }
+            a.anyRequest().authenticated();
+        })
             .httpBasic(Customizer.withDefaults())
             .logout(l -> l.logoutSuccessUrl("/").permitAll());
 

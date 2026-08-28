@@ -37,6 +37,22 @@ public class AgentMetrics {
      * @param inputTokens  Number of input tokens consumed
      * @param outputTokens Number of output tokens produced
      */
+    /**
+     * How a model delivered its tool calls: structured | recovered | none.
+     * A model stuck on "none" produces turns that look successful and do nothing.
+     */
+    public void recordToolCallFormat(String provider, String model, String format) {
+        String key = "llm_tool_call_format_total|provider=" + provider
+                + "|model=" + model + "|format=" + format;
+        counterCache.computeIfAbsent(key, k ->
+                Counter.builder("llm_tool_call_format_total")
+                        .tag("provider", provider)
+                        .tag("model", model)
+                        .tag("format", format)
+                        .register(registry)
+        ).increment();
+    }
+
     public void recordLlmCall(String provider, boolean ok, int inputTokens, int outputTokens) {
         String outcome = ok ? "ok" : "error";
 

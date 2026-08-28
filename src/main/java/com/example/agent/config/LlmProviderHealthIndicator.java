@@ -1,6 +1,7 @@
 package com.example.agent.config;
 
 import com.example.agent.llm.LlmProvider;
+import com.example.agent.llm.ToolCallFormatObserver;
 import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.stereotype.Component;
@@ -22,10 +23,13 @@ public class LlmProviderHealthIndicator implements HealthIndicator {
 
     private final LlmProvider provider;
     private final AgentProperties props;
+    private final ToolCallFormatObserver formatObserver;
 
-    public LlmProviderHealthIndicator(LlmProvider provider, AgentProperties props) {
+    public LlmProviderHealthIndicator(LlmProvider provider, AgentProperties props,
+                                      ToolCallFormatObserver formatObserver) {
         this.provider = provider;
         this.props = props;
+        this.formatObserver = formatObserver;
     }
 
     @Override
@@ -34,8 +38,12 @@ public class LlmProviderHealthIndicator implements HealthIndicator {
         boolean isUsable = isProviderConfigUsable(providerName);
 
         if (isUsable) {
+            // toolCalls is a DETAIL, never part of the status. Readiness is a
+            // config-only check by design, and a model answering a few questions
+            // without needing a tool must not pull the instance out of rotation.
             return Health.up()
                     .withDetail("provider", providerName)
+                    .withDetail("toolCalls", formatObserver.verdict())
                     .build();
         } else {
             return Health.down()

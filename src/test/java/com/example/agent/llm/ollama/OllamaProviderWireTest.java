@@ -27,6 +27,8 @@ class OllamaProviderWireTest {
     private MockWebServer server;
     private OllamaProvider provider;
     private AgentProperties.Ollama cfg;
+    private com.example.agent.llm.ToolCallFormatObserver observer;
+    private io.micrometer.core.instrument.simple.SimpleMeterRegistry registry;
 
     @BeforeEach
     void setUp() throws IOException {
@@ -38,11 +40,14 @@ class OllamaProviderWireTest {
         cfg.setBaseUrl(server.url("/").toString().replaceAll("/$", ""));
         cfg.setModel("llama3");
 
+        observer = new com.example.agent.llm.ToolCallFormatObserver();
+        registry = new SimpleMeterRegistry();
         provider = new OllamaProvider(
                 props,
                 WebClient.builder(),
                 new ObjectMapper(),
-                new AgentMetrics(new SimpleMeterRegistry()));
+                new AgentMetrics(registry),
+                observer);
     }
 
     @AfterEach
@@ -186,5 +191,61 @@ class OllamaProviderWireTest {
         } finally {
             logger.detachAppender(appender);
         }
+    }
+
+    private double formatCount(String format) {
+        io.micrometer.core.instrument.Counter c = registry.find("llm_tool_call_format_total")
+                .tag("format", format).counter();
+        return c == null ? 0d : c.count();
+    }
+
+    @Test
+    void structuredToolCallIsRecordedAsStructured() {
+        server.enqueue(new MockResponse().setHeader("Content-Type", "application/json")
+                .setBody("{\"model\":\"llama3\",\"message\":{\"role\":\"assistant\",\"content\":\"\","
+                        + "\"tool_calls\":[{\"function\":{\"name\":\"read_file\",\"arguments\":{\"path\":\"a\"}}}]},"
+                        + "\"done\":true,\"prompt_eval_count\":1,\"eval_count\":1}"));
+
+        provider.complete("sys", List.of(ChatMessage.user("hi")), List.of(), "s1");
+
+        assertThat(observer.structuredCount()).isEqualTo(1);
+        assertThat(formatCount("structured")).isEqualTo(1d);
+        assertThat(observer.verdict()).contains("structured tool calls seen");
+    }
+
+    @Test
+    void aCallEmittedAsTextIsRecordedAsRecovered() {
+        // qwen3-coder's XML form, which the loop cannot see without the parser.
+        server.enqueue(new MockResponse().setHeader("Content-Type", "application/json")
+                .setBody("{\"model\":\"llama3\",\"message\":{\"role\":\"assistant\",\"content\":"
+                        + "\"<function=list_dir>\\n<parameter=path>\\n.\\n</parameter>\\n</function>\"},"
+                        + "\"done\":true,\"prompt_eval_count\":1,\"eval_count\":1}"));
+
+        provider.complete("sys", List.of(ChatMessage.user("hi")), List.of(), "s2");
+
+        assertThat(observer.recoveredCount()).isEqualTo(1);
+        assertThat(formatCount("recovered")).isEqualTo(1d);
+        // The operator-facing point: it works, but only via best-effort parsing.
+        assertThat(observer.verdict()).contains("NO structured tool calls");
+    }
+
+    @Test
+    void aPlainAnswerIsRecordedAsNone() {
+        server.enqueue(new MockResponse().setHeader("Content-Type", "application/json")
+                .setBody("{\"model\":\"llama3\",\"message\":{\"role\":\"assistant\","
+                        + "\"content\":\"The answer is 4.\"},"
+                        + "\"done\":true,\"prompt_eval_count\":1,\"eval_count\":1}"));
+
+        provider.complete("sys", List.of(ChatMessage.user("2+2")), List.of(), "s3");
+
+        assertThat(observer.noneCount()).isEqualTo(1);
+        assertThat(formatCount("none")).isEqualTo(1d);
+        assertThat(observer.verdict()).contains("no tool call has ever been produced");
+    }
+
+    @Test
+    void verdictDistinguishesNothingSeenYetFromModelCannotDoIt() {
+        // The two states call for opposite reactions: wait, versus change the model.
+        assertThat(observer.verdict()).isEqualTo("no completions yet");
     }
 }

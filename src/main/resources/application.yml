@@ -93,6 +93,13 @@ agent:
     # Set to 0 (PT0S) to disable. See docs/adr/0002-multi-instance-sse.md.
     heartbeat-interval: ${AGENT_SSE_HEARTBEAT_INTERVAL:15s}
 
+  metrics:
+    # Scraping /actuator/prometheus without credentials while auth is enabled.
+    # Default false: metric labels leak tool names, providers, token counts and
+    # request rates. Set true only where the scraper cannot authenticate and the
+    # port is network-restricted. /actuator/health/** is always open regardless.
+    public-scrape: ${AGENT_METRICS_PUBLIC_SCRAPE:false}
+
   rate-limit:
     enabled: ${AGENT_RATE_LIMIT_ENABLED:true}
     chat:
@@ -106,9 +113,15 @@ agent:
 
   llm:
     provider: ${AGENT_LLM_PROVIDER:copilot}
-    max-turns-per-request: 10
-    max-tokens-per-request: 50000
-    max-tokens-per-session: 200000
+    # Measured against a real repository (docs/real-repo-validation.md): a search
+    # took 2 turns and a single-file edit 5, but a two-file change with a test hit
+    # the old cap of 10 having produced nothing. After the list_dir fix the same
+    # task completed its edits in ~11 turns — and then stopped on the TOKEN budget,
+    # not the turn cap, at ~54k. Raising turns alone would have changed nothing,
+    # so both move together; roughly 4-5k tokens per turn against a real repo.
+    max-turns-per-request:  ${AGENT_LLM_MAX_TURNS_PER_REQUEST:25}
+    max-tokens-per-request: ${AGENT_LLM_MAX_TOKENS_PER_REQUEST:150000}
+    max-tokens-per-session: ${AGENT_LLM_MAX_TOKENS_PER_SESSION:600000}
     # Per-token streaming from the LLM to the SSE endpoint. See ADR 0003.
     streaming-enabled: ${AGENT_LLM_STREAMING_ENABLED:true}
     system-prompt: |

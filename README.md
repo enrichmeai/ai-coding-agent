@@ -67,7 +67,7 @@ your own systems.
 - **Token usage tracking** — per-call usage is accumulated per session and exposed via the API and UI.
 - **Pluggable persistence**: in-memory (default) or SQLite via JPA/Hibernate. Switch with one env var.
 - **Optional HTTP Basic auth** in front of the API and UI.
-- **OpenAPI / Swagger UI** at `/swagger-ui.html` for easy API exploration.
+- **OpenAPI / Swagger UI** at `/swagger-ui.html` for easy API exploration — behind auth when auth is enabled, since the document describes every endpoint and schema.
 - **Explicit CORS** configuration, customisable for production.
 - **Docker** + `docker-compose.yml` with a persistent SQLite volume and a bind-mounted workspace.
 - **Sandboxed workspace**: every file/shell path resolves relative to `agent.workspace` and path traversal is blocked.
@@ -78,7 +78,7 @@ your own systems.
 
 - **Structured logging** — `logback-spring.xml` emits plain text by default; activate `-Dspring.profiles.active=prod` for JSON via `logstash-logback-encoder`. Every log line carries `requestId`, `userId`, and (where applicable) `sessionId` in MDC.
 - **Request IDs** — the `RequestIdFilter` reads `X-Request-Id` or generates one, stamps MDC, and echoes the ID as a response header so clients can correlate.
-- **Metrics** — `/actuator/prometheus` exposes `llm_calls_total{provider,outcome}`, `llm_tokens_total{provider,kind}`, `tool_calls_total{tool,outcome}`, `tool_call_duration_ms{tool}`, and `sse_streams_active` gauge.
+- **Metrics** — `/actuator/prometheus` exposes `llm_calls_total{provider,outcome}`, `llm_tokens_total{provider,kind}`, `tool_calls_total{tool,outcome}`, `tool_call_duration_ms{tool}`, and `sse_streams_active` gauge. **Requires authentication when auth is enabled** — the labels carry tool names, providers and token counts. If your scraper cannot authenticate, set `AGENT_METRICS_PUBLIC_SCRAPE=true` and restrict the port at the network; `/actuator/health/**` stays open either way for load balancers.
 - **Readiness vs liveness** — `/actuator/health/liveness` stays up while an LLM provider is misconfigured; `/actuator/health/readiness` goes DOWN so load balancers pull the instance out of rotation. Custom `LlmProviderHealthIndicator` does a config-only check (no external calls).
 - **Audit log** — every LLM call and tool invocation is persisted to `audit_events` (SQLite mode only). Owner-scoped read at `GET /api/sessions/{id}/audit`.
 - **Graceful SSE shutdown** — on `ContextClosedEvent` the `SseEmitterRegistry` sends a terminating `shutdown` event and completes every in-flight emitter so clients don't see socket resets.
@@ -87,7 +87,7 @@ your own systems.
 ### Phase 1 safety (see [ROADMAP.md](./ROADMAP.md) and [SECURITY.md](./SECURITY.md))
 
 - **Shell sandbox**: optional allow-list (`agent.tools.shell.allowed-commands`), kill switch (`AGENT_TOOLS_SHELL_ENABLED=false`), expanded block-list, Docker hardening flags (`read_only`, `cap_drop`, `pids_limit`, `no-new-privileges`).
-- **Resource limits**: bounded SSE thread pool, per-request + per-session token budgets, tool-output truncation, last-N context windowing.
+- **Resource limits**: bounded SSE thread pool, per-request + per-session token budgets, tool-output truncation, last-N context windowing. Defaults are 25 turns and 150k tokens per request (`AGENT_LLM_MAX_TURNS_PER_REQUEST`, `AGENT_LLM_MAX_TOKENS_PER_REQUEST`), measured against a real repository — see below.
 - **Rate limiting**: Bucket4j filter with separate limits for `/api/chat*` vs `/api/**`; keyed by principal-else-IP; `429 Retry-After` responses.
 - **Per-user session ownership**: every session is stamped with the authenticated user (or `anonymous` when auth is off). Cross-user access returns 404, never leaking existence.
 - **Error hygiene**: global `@RestControllerAdvice` returns stable `ApiError` JSON with request IDs; messages are sanitised unless the exception is marked `@SafeMessage`.
@@ -378,3 +378,31 @@ is what every LLM call and tool invocation is attributed to.
 
 Apache License 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE). Free for commercial use,
 no strings.
+
+## Turn and token budgets
+
+Three bounds stop a runaway loop: `max-turns-per-request`, `max-tokens-per-request`
+and `max-tokens-per-session`. All three are configurable, and the defaults come
+from measurement rather than taste — see `docs/real-repo-validation.md`.
+
+Against a real repository, using a local 30B model:
+
+| Task | Turns used |
+|---|---|
+| Find every reader of a config property | 2 |
+| Add a Javadoc comment to one class | 5 |
+| Add an endpoint plus a test for it | more than 10 — failed at the old cap |
+
+**Which bound bites first matters more than either number.** When the two-file
+task was retried after the `list_dir` fix, it completed its edits in about 11
+turns and then stopped on the *token* budget at ~54k, not the turn cap. Raising
+turns alone would have changed nothing. Reckon on roughly 4–5k tokens per turn
+against a real codebase, and raise both together or neither.
+
+Hitting a bound is not an error: the assistant says which one stopped it, the
+session history is kept, and **sending another message continues the work with a
+fresh turn and token budget**. Continuation is deliberately manual — the bounds
+exist so an unattended loop cannot burn tokens indefinitely.
+
+Lower them for a shared or metered deployment; raise them if you are driving a
+local model where tokens are effectively free.

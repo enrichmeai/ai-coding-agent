@@ -193,3 +193,32 @@ Two things had to change to make a build survive the tool layer:
   success — the timeout never fired for exactly the commands that needed it.
   `ShellTool` also keeps the head *and tail* of long output, because a build
   prints dependency noise first and the reason it failed last.
+
+## "The agent just answers, it never does anything"
+
+Almost always the model, not the agent. The loop acts only on structured
+`tool_calls`; a model that answers in prose produces a turn that looks
+successful — assistant text, no error, nothing done.
+
+Check which of the three is happening:
+
+```bash
+curl -s localhost:8090/actuator/prometheus | grep llm_tool_call_format_total
+```
+
+| `format` label | Meaning |
+|---|---|
+| `structured` | Working. The model uses Ollama's `tool_calls` field. |
+| `recovered` | Working, but only because `TextToolCallParser` salvaged a call the model emitted as text. Best-effort — it will not catch every format. Prefer a model that scores `structured`. |
+| `none` | No tool call. Normal for a plain question; if it is *all* you ever see, the model cannot make tool calls with this payload. |
+
+`/actuator/health` says the same thing in words, under `llmProvider.toolCalls` —
+including the distinction between "no completions yet" and "no tool call has ever
+been produced", which call for opposite reactions: wait, versus change the model.
+
+The logs carry the other half. A recovered call logs at INFO naming the model. A
+reply that *looks* like a tool call but could not be parsed logs a WARN with the
+first 200 characters, which is the case that would otherwise pass in silence.
+
+If you are stuck on `none`, see the model table above — `qwen2.5-coder` scores
+0/4 and was once the shipped default.

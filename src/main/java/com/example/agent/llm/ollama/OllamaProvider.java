@@ -4,6 +4,7 @@ import com.example.agent.config.AgentMetrics;
 import com.example.agent.config.AgentProperties;
 import com.example.agent.llm.CompletionResult;
 import com.example.agent.llm.LlmProvider;
+import com.example.agent.llm.ToolCallFormatObserver;
 import com.example.agent.model.ChatMessage;
 import com.example.agent.model.Role;
 import com.example.agent.model.TokenUsage;
@@ -44,6 +45,7 @@ public class OllamaProvider implements LlmProvider {
     private final ObjectMapper mapper;
     private final AgentMetrics metrics;
     private final TextToolCallParser textToolCallParser;
+    private final ToolCallFormatObserver formatObserver;
     /** Sessions already warned about context pressure; bounded so it cannot grow forever. */
     private final Map<String, Boolean> contextWarned = java.util.Collections.synchronizedMap(
             new java.util.LinkedHashMap<>(16, 0.75f, true) {
@@ -55,11 +57,13 @@ public class OllamaProvider implements LlmProvider {
     public OllamaProvider(AgentProperties props,
                           WebClient.Builder webClientBuilder,
                           ObjectMapper mapper,
-                          AgentMetrics metrics) {
+                          AgentMetrics metrics,
+                          ToolCallFormatObserver formatObserver) {
         this.cfg = props.getLlm().getOllama();
         this.mapper = mapper;
         this.metrics = metrics;
         this.textToolCallParser = new TextToolCallParser(mapper);
+        this.formatObserver = formatObserver;
         this.webClient = webClientBuilder
                 .baseUrl(cfg.getBaseUrl())
                 .defaultHeader("content-type", MediaType.APPLICATION_JSON_VALUE)
@@ -210,14 +214,35 @@ public class OllamaProvider implements LlmProvider {
             }
         }
         // Local models often ignore the structured tool_calls field and emit the
-        // call as prose instead; recover those so the loop can still act on them.
+        // call as prose instead; recover those so the loop can still act on them,
+        // and record which of the three things happened. A model that can never
+        // produce a tool call otherwise fails invisibly: the turn returns text,
+        // no error, and nothing done.
+        ToolCallFormatObserver.Format format =
+                toolCalls.isEmpty() ? ToolCallFormatObserver.Format.NONE
+                                    : ToolCallFormatObserver.Format.STRUCTURED;
         if (toolCalls.isEmpty()) {
             TextToolCallParser.Result recovered = textToolCallParser.parse(text);
             if (!recovered.toolCalls().isEmpty()) {
                 text = recovered.text();
                 toolCalls = recovered.toolCalls();
+                format = ToolCallFormatObserver.Format.RECOVERED;
+                log.info("Recovered {} tool call(s) from assistant text for model {}. "
+                                + "The model is not using Ollama's tool_calls field; recovery "
+                                + "is best-effort and will not catch every format.",
+                        toolCalls.size(), cfg.getModel());
+            } else if (textToolCallParser.looksLikeAnUnrecoveredToolCall(text)) {
+                log.warn("Model {} appears to have emitted a tool call as text that could "
+                                + "not be parsed, so this turn will do nothing. Check the "
+                                + "model's tool-call support — see docs/offline-docker-compose.md. "
+                                + "First 200 chars: {}",
+                        cfg.getModel(),
+                        text.length() > 200 ? text.substring(0, 200) : text);
             }
         }
+        formatObserver.record(format);
+        metrics.recordToolCallFormat(name(), cfg.getModel(),
+                format.name().toLowerCase(java.util.Locale.ROOT));
 
         // Ollama uses prompt_eval_count / eval_count at the top level.
         TokenUsage tokens = new TokenUsage(

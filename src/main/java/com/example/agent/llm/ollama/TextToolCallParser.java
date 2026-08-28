@@ -60,6 +60,21 @@ final class TextToolCallParser {
     /** The text with any recovered tool-call markup removed, plus the calls found. */
     record Result(String text, List<ToolCall> toolCalls) {}
 
+    /**
+     * Whether text looks like a tool call the parser could not turn into one —
+     * a malformed variant of a shape we know, or a format we do not handle yet.
+     * Used to warn instead of letting the turn end silently having done nothing.
+     */
+    boolean looksLikeAnUnrecoveredToolCall(String text) {
+        if (text == null || text.isBlank()) return false;
+        String t = text.toLowerCase();
+        return t.contains("<function=")
+                || t.contains("<tool_call")
+                || t.contains("\"arguments\"")
+                || t.contains("\"parameters\"")
+                || (t.contains("\"name\"") && t.contains("{"));
+    }
+
     Result parse(String text) {
         if (text == null || text.isBlank()) {
             return new Result(text, List.of());
