@@ -122,3 +122,7 @@ or produced a wrong answer.
   at all, using the real nine-tool payload. `ollama show` will not tell you.
 - `agent-validate` — drive the agent against a throwaway repo clone and record
   turns, tokens and what broke. Never point it at the working tree.
+- `pr-sweep` — survey open PRs, branches and local-vs-remote state before
+  starting work or reporting status. Several sessions share this repo and this
+  checkout; every failure it guards against produced a confident wrong answer
+  rather than an error.
