@@ -10,6 +10,13 @@ updates:
     groups:
       gradle-deps:
         patterns: ["*"]
+    ignore:
+      # Majors are deliberate migrations, not weekly chores: the first weekly
+      # group PR bundled Spring Boot 4 + Hibernate 7 + springdoc 3 + a Gradle
+      # wrapper major into one "14 updates" PR. Patch/minor flows weekly;
+      # majors get their own planned, ship-checked PR.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
