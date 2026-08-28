@@ -46,6 +46,34 @@ class SecurityConfigTest {
         }
     }
 
+    // ---------- default: auth ON ----------
+
+    @SpringBootTest
+    @AutoConfigureMockMvc
+    @TestPropertySource(properties = {
+            // Deliberately NO agent.auth.enabled: the product default must be
+            // secure. An agent that executes shell commands never ships open —
+            // opting OUT is the explicit act.
+            "agent.llm.provider=stub",
+            "agent.workspace=${java.io.tmpdir}/agent-test-sec-default",
+            "agent.storage.type=memory",
+            "agent.rate-limit.enabled=false"
+    })
+    @org.springframework.context.annotation.Import(StubCfg.class)
+    @Nested class DefaultIsAuthOn {
+        @Autowired MockMvc mvc;
+
+        @Test
+        void unauthenticatedCallsAreRejectedByDefault() throws Exception {
+            mvc.perform(get("/api/tools")).andExpect(status().isUnauthorized());
+        }
+
+        @Test
+        void healthStaysOpenByDefault() throws Exception {
+            mvc.perform(get("/api/health")).andExpect(status().isOk());
+        }
+    }
+
     // ---------- auth OFF ----------
 
     @SpringBootTest

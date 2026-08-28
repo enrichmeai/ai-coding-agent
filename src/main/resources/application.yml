@@ -62,7 +62,9 @@ agent:
     sqlite-path: ${AGENT_SQLITE_PATH:./data/agent.db}
 
   auth:
-    enabled: ${AGENT_AUTH_ENABLED:false}
+    # Secure by default — see AgentProperties.Auth. Opt out explicitly for
+    # local experiments with AGENT_AUTH_ENABLED=false.
+    enabled: ${AGENT_AUTH_ENABLED:true}
     # basic | oidc | disabled
     mode: ${AGENT_AUTH_MODE:basic}
     # ---- Basic-mode (legacy / transitional) ----
