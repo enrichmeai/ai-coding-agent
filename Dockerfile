@@ -42,7 +42,7 @@ RUN ./gradlew --no-daemon clean bootJar -x test
 RUN ./gradlew --no-daemon test
 
 # ----- runtime stage -----
-FROM eclipse-temurin:25-jdk-jammy
+FROM eclipse-temurin:21-jdk-jammy
 RUN apt-get update \
     && apt-get install -y --no-install-recommends bash git curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
